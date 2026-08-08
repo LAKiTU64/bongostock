@@ -25,7 +25,7 @@ macOS/Linux 将 PowerShell 命令换成对应终端即可。Node.js、pnpm、Rus
 - `src-tauri/target/`
 - 日志、崩溃转储和临时文件
 - NSIS、DMG 等安装产物
-- 任何凭据、Token 或公司环境信息
+- 任何凭据、Token 或公司环境信息（外接行情 Token 会保存在本地行情配置中）
 
 ## 2. 可选：迁移个人应用数据
 
@@ -74,7 +74,7 @@ pnpm tauri dev
 - 计数框、SVG 菜单框和窗口缩放正常；
 - 默认“自选股”含四个指数；
 - 分时、5 日、日 K 可打开并显示悬停价格；
-- 外接行情的 HTTP/HTTPS、超时和临时 Token 行为符合预期；
+- 外接行情的 HTTP/HTTPS、超时和持久化 Token 行为符合预期；
 - Windows 全局输入权限提示正常；macOS 在真机授权后回归输入监听。
 
 ## 5. Git 安全检查

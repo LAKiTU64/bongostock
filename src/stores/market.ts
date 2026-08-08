@@ -80,9 +80,4 @@ export const useMarketStore = defineStore('market', () => {
     snapshot,
     replaceFromEvent,
   }
-}, {
-  tauri: {
-    // Tokens are intentionally session-only and are never written by Tauri Store.
-    filterKeys: ['bearerToken'],
-  },
 })

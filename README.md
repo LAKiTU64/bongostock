@@ -63,7 +63,7 @@ StrayRogue/Steam 素材不在本仓库、不在内置资源、不在 Git 历史�
 
 ### 外接数据源
 
-设置页可切换到 BongoStock API v1，支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时。外接模式不会静默回退内置源；Token 只保存在当前进程内存，不写入持久化 Store。
+设置页可切换到 BongoStock API v1，支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时。外接模式不会静默回退内置源；Token 会保存在本机应用数据中并在重启后自动恢复，请勿分享或提交本地配置文件。
 
 外接服务需要实现：
 

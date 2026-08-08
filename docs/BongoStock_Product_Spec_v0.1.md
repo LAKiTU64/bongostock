@@ -129,7 +129,7 @@ BongoStock 是一个 Windows/macOS 桌面宠物：它累计键盘与鼠标操作
 - 用户可配置 HTTP 或 HTTPS Base URL；
 - 协议为 BongoStock Market API v1；
 - 默认超时 8 秒，可设 1～30 秒；
-- Bearer Token 可选，仅保存在当前会话；
+- Bearer Token 可选，保存在本机应用数据中并在重启后自动恢复；
 - 只允许同 scheme/host 的 `/v1/` GET/POST 请求；
 - 禁止重定向，响应最大 2 MiB；
 - 外接失败不会静默切回内置源。
@@ -146,7 +146,7 @@ BongoStock 是一个 Windows/macOS 桌面宠物：它累计键盘与鼠标操作
 - 快捷键；
 - 关于：版本、项目地址、日志与第三方说明。
 
-持久化数据包括计数、窗口和行情偏好、自选分组、导入皮肤索引等。外接 Bearer Token 明确排除在持久化之外。
+持久化数据包括计数、窗口和行情偏好、自选分组、导入皮肤索引及外接 Bearer Token。包含 Token 的本地配置文件属于敏感数据，不应提交到仓库或公开分享。
 
 ## 9. 平台与交付
 

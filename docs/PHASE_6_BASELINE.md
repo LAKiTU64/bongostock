@@ -59,7 +59,7 @@ Phase 0～5 文档保留为历史实施快照。当前行为以本文件、`PROJ
 - 可切换外接 BongoStock API v1；
 - 外接支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时；
 - 外接模式不静默回退内置源；
-- Token 只保存在当前进程内存；
+- Token 保存在本机应用数据中，重启后自动恢复；
 - Rust 请求层只允许 GET/POST、配置主机与 `/v1/` 路径，禁用重定向并限制响应为 2 MB。
 
 ## 仓库与发布状态

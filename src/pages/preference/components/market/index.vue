@@ -257,7 +257,7 @@ function getQuoteName(code: string) {
       </ProListItem>
 
       <ProListItem
-        description="令牌只在当前运行期间保存在内存，不会写入 Pinia Store；重启应用后需要重新填写。"
+        description="令牌保存在本机应用数据中，重启后会自动恢复。请勿分享或提交包含令牌的配置文件。"
         title="Bearer Token（可选）"
       >
         <Input

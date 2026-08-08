@@ -88,7 +88,7 @@ Phase 0～5 文档是历史实施快照；当前状态以 `PHASE_6_BASELINE.md`�
 - 可切换外接 BongoStock API v1；
 - 外接支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时；
 - 外接模式不静默回退内置源；
-- Token 仅在内存中保存；
+- Token 保存在本机应用数据中，重启后自动恢复；配置文件不得提交或公开分享；
 - Rust 层限制 GET/POST、配置主机、`/v1/` 路径和 2 MB 响应，禁止重定向；
 - 代码位于 POST body 只能减少 URL 日志暴露，不能对外接服务器隐藏代码。
 
@@ -102,7 +102,7 @@ Phase 0～5 文档是历史实施快照；当前状态以 `PHASE_6_BASELINE.md`�
 | `src/pages/stock-panel/index.vue` | 分组列表、详情图表、常驻、淡出和关闭交互 |
 | `src/market/marketService.ts` | 内置/外接 Provider、报价、走势、日 K、搜索与缓存 |
 | `src/stores/watchlist.ts` | 默认分组、8 组/50 只上限、迁移和淡出设置 |
-| `src/stores/market.ts` | 行情源、外接地址、超时和内存 Token |
+| `src/stores/market.ts` | 行情源、外接地址、超时和持久化 Token |
 | `src/stores/skin.ts` | 两套内置模型、导入皮肤和旧值迁移 |
 | `src/skins/skinService.ts` | 前端皮肤导入、列举和删除接口 |
 | `src-tauri/src/utils/skin.rs` | 皮肤 ZIP 安全校验、安装、列举和删除 |
