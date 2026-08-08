@@ -5,7 +5,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Runtime, WebviewWindow, command};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{
-    HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos,
+    BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SetForegroundWindow, SetWindowPos, ShowWindow,
 };
 
 static TOPMOST_RUNNING: OnceLock<Arc<AtomicBool>> = OnceLock::new();
@@ -14,6 +15,20 @@ static TOPMOST_RUNNING: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 pub async fn show_window<R: Runtime>(_app_handle: AppHandle<R>, window: WebviewWindow<R>) {
     let _ = window.show();
     let _ = window.unminimize();
+
+    // WebView focus alone does not reliably activate a hidden preference
+    // window on Windows, especially when the request comes from a tray/menu
+    // callback. Bring the native HWND to the foreground as well.
+    if let Ok(native_hwnd) = window.hwnd() {
+        let hwnd = HWND(native_hwnd.0);
+
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+            let _ = BringWindowToTop(hwnd);
+            let _ = SetForegroundWindow(hwnd);
+        }
+    }
+
     let _ = window.set_focus();
 }
 

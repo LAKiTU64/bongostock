@@ -411,7 +411,7 @@ function formatDetailError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
 
   if (/failed to fetch|fetch failed|socket|连接/i.test(message)) {
-    return '数据源连接失败，请检查网络或 Clash 代理规则'
+    return '数据源连接失败，请检查网络代理设置'
   }
 
   return message || '数据加载失败'

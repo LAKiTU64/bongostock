@@ -98,7 +98,10 @@ pub async fn set_always_on_top<R: Runtime>(
         let _ = window.set_always_on_top(true);
     } else {
         let _ = window.set_always_on_top(false);
-        let _ = window.set_always_on_bottom(true);
+        // Clearing both flags restores normal window ordering. Setting
+        // always-on-bottom here would make preference/stock windows behave
+        // differently from Windows, where false means not-topmost.
+        let _ = window.set_always_on_bottom(false);
     }
 }
 

@@ -32,7 +32,7 @@
         "hiddenTitle": true,
         "minWidth": 800,
         "minHeight": 600,
-        "skipTaskbar": true
+        "skipTaskbar": false
       },
       {
         "label": "stock-panel",
