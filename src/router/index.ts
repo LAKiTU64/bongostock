@@ -2,22 +2,18 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import { createRouter, createWebHashHistory } from 'vue-router'
 
-import Main from '../pages/main/index.vue'
-import Preference from '../pages/preference/index.vue'
-import StockPanel from '../pages/stock-panel/index.vue'
-
 const routes: Readonly<RouteRecordRaw[]> = [
   {
     path: '/',
-    component: Main,
+    component: () => import('../pages/main/index.vue'),
   },
   {
     path: '/preference',
-    component: Preference,
+    component: () => import('../pages/preference/index.vue'),
   },
   {
     path: '/stock-panel',
-    component: StockPanel,
+    component: () => import('../pages/stock-panel/index.vue'),
   },
 ]
 

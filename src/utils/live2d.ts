@@ -9,7 +9,7 @@ import { Application, Ticker } from 'pixi.js'
 
 import type { ModelSize } from '@/composables/useModel'
 
-import { i18n } from '@/locales'
+import { i18n } from '@/locales/i18n'
 
 import { join } from './path'
 

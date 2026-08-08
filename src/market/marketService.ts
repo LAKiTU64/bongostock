@@ -29,14 +29,6 @@ export interface TrendSeries {
   source: 'eastmoney' | 'tencent'
 }
 
-/** Initial values used when no local watchlist has been saved yet. */
-export const DEFAULT_WATCHLIST = [
-  'SH000001',
-  'SZ399001',
-  'SH000300',
-  'SH000688',
-] as const
-
 const QUOTE_BATCH_SIZE = 25
 const TREND_HISTORY_ENDPOINT = 'https://push2his.eastmoney.com/api/qt/stock/trends2/get'
 const TREND_LIVE_ENDPOINTS = [

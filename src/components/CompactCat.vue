@@ -10,8 +10,14 @@ import type { CatSkin } from '@/stores/cat'
 
 import { skinAssetUrl } from '@/skins/skinService'
 import { getBuiltinSkin } from '@/stores/skin'
-import live2d from '@/utils/live2d'
 import { join } from '@/utils/path'
+
+type Live2d = typeof import('@/utils/live2d').default
+interface Live2dCore {
+  Version?: {
+    csmGetVersion?: () => number
+  }
+}
 
 const props = defineProps<{
   count: number
@@ -74,6 +80,76 @@ const activeKeyOverlayUrls = computed(() => {
   return urls
 })
 let loadVersion = 0
+let live2d: Live2d | undefined
+let live2dLoad: Promise<Live2d> | undefined
+let live2dCoreLoad: Promise<void> | undefined
+
+function getLive2dCore() {
+  return (globalThis as typeof globalThis & { Live2DCubismCore?: Live2dCore }).Live2DCubismCore
+}
+
+function isLive2dCoreReady() {
+  const getVersion = getLive2dCore()?.Version?.csmGetVersion
+
+  if (typeof getVersion !== 'function') return false
+
+  try {
+    getVersion()
+    return true
+  } catch {
+    return false
+  }
+}
+
+function loadLive2dCoreScript() {
+  if (getLive2dCore()) return Promise.resolve()
+
+  live2dCoreLoad ??= new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-bongostock-live2d-core]')
+    const script = existing ?? document.createElement('script')
+
+    if (!existing) {
+      script.dataset.bongostockLive2dCore = 'true'
+      script.src = '/js/live2dcubismcore.min.js'
+      script.async = true
+    }
+
+    script.addEventListener('load', () => resolve(), { once: true })
+    script.addEventListener('error', () => reject(new Error('Live2D core failed to load')), { once: true })
+
+    if (!existing) document.head.append(script)
+  })
+
+  return live2dCoreLoad
+}
+
+async function loadLive2dCore() {
+  if (isLive2dCoreReady()) return
+
+  await loadLive2dCoreScript()
+
+  const deadline = Date.now() + 5_000
+
+  while (!isLive2dCoreReady() && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 16))
+  }
+
+  if (!isLive2dCoreReady()) throw new Error('Live2D core is not ready')
+}
+
+async function loadLive2d() {
+  if (live2d) return Promise.resolve(live2d)
+
+  live2dLoad ??= (async () => {
+    await loadLive2dCore()
+    const module = await import('@/utils/live2d')
+
+    live2d = module.default
+    return module.default
+  })()
+
+  return live2dLoad
+}
 
 async function loadBuiltinSkin() {
   const version = ++loadVersion
@@ -85,15 +161,19 @@ async function loadBuiltinSkin() {
     if (!canvas.value || !scene.value || !skin) return
 
     const modelPath = await resolveResource(skin.modelPath)
-    const { width, height } = await live2d.load(modelPath, canvas.value)
+    const runtime = await loadLive2d()
+    const { width, height } = await runtime.load(modelPath, canvas.value)
 
-    if (version !== loadVersion || !builtinSkin.value) return
+    if (version !== loadVersion || !builtinSkin.value) {
+      runtime.destroy()
+      return
+    }
 
     builtinModelSize.value = { width, height }
     backgroundUrl.value = convertFileSrc(join(modelPath, 'resources', 'background.png'))
     keyOverlayUrls.value = await loadKeyOverlays(modelPath, skin.keyResources)
-    resizeBuiltinSkin()
-    syncBuiltinInput()
+    void resizeBuiltinSkin()
+    void syncBuiltinInput()
   } catch (error) {
     logError(`[skin] Failed to load BongoCat model: ${String(error)}`)
   }
@@ -117,12 +197,13 @@ async function loadKeyOverlays(modelPath: string, allowed: { left: string[], rig
   return result
 }
 
-function resizeBuiltinSkin() {
+async function resizeBuiltinSkin() {
   if (!builtinModelSize.value || !scene.value) return
 
   const bounds = scene.value.getBoundingClientRect()
+  const runtime = await loadLive2d()
 
-  live2d.resizeModel(builtinModelSize.value, {
+  runtime.resizeModel(builtinModelSize.value, {
     centerX: bounds.left + bounds.width * 0.5,
     centerY: bounds.top + bounds.height * 0.5,
     fitHeight: bounds.height,
@@ -130,7 +211,10 @@ function resizeBuiltinSkin() {
   })
 }
 
-function syncBuiltinInput() {
+async function syncBuiltinInput() {
+  if (!isBuiltinSkin.value) return
+
+  const runtime = await loadLive2d()
   if (!isBuiltinSkin.value) return
 
   // Match upstream BongoCat: keyboard resources decide which paw moves, while
@@ -139,10 +223,14 @@ function syncBuiltinInput() {
   const leftDown = props.pressedKeys.some(key => key in keyOverlayUrls.value.left)
   const rightDown = props.pressedKeys.some(key => key in keyOverlayUrls.value.right)
 
-  live2d.setParameterValue('CatParamLeftHandDown', leftDown)
-  live2d.setParameterValue('CatParamRightHandDown', rightDown)
-  live2d.setParameterValue('ParamMouseLeftDown', props.mouseLeftDown)
-  live2d.setParameterValue('ParamMouseRightDown', props.mouseRightDown)
+  runtime.setParameterValue('CatParamLeftHandDown', leftDown)
+  runtime.setParameterValue('CatParamRightHandDown', rightDown)
+  runtime.setParameterValue('ParamMouseLeftDown', props.mouseLeftDown)
+  runtime.setParameterValue('ParamMouseRightDown', props.mouseRightDown)
+}
+
+function handleResize() {
+  void resizeBuiltinSkin()
 }
 
 watch([() => props.skin, () => props.importedSkin], ([skin]) => {
@@ -157,7 +245,7 @@ watch([() => props.skin, () => props.importedSkin], ([skin]) => {
   builtinModelSize.value = undefined
   backgroundUrl.value = ''
   keyOverlayUrls.value = { left: {}, right: {} }
-  live2d.destroy()
+  live2d?.destroy()
 })
 
 watch(() => [
@@ -166,18 +254,20 @@ watch(() => [
   props.mouseLeftDown,
   props.mouseRightDown,
   props.pressedKeys,
-], syncBuiltinInput, { deep: true })
+], () => {
+  void syncBuiltinInput()
+}, { deep: true })
 
 onMounted(() => {
-  globalThis.addEventListener('resize', resizeBuiltinSkin)
+  globalThis.addEventListener('resize', handleResize)
 
   if (isBuiltinSkin.value) void loadBuiltinSkin()
 })
 
 onUnmounted(() => {
   ++loadVersion
-  globalThis.removeEventListener('resize', resizeBuiltinSkin)
-  live2d.destroy()
+  globalThis.removeEventListener('resize', handleResize)
+  live2d?.destroy()
 })
 </script>
 

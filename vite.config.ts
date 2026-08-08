@@ -36,4 +36,14 @@ export default defineConfig(async () => ({
       ignored: ['**/src-tauri/**', '**/target/**'],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Keep the market SDK cacheable and out of the main/pet entry.
+          if (id.includes('node_modules/stock-api')) return 'vendor-market'
+        },
+      },
+    },
+  },
 }))

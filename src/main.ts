@@ -3,11 +3,10 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 
 import App from './App.vue'
-import { i18n } from './locales'
+import { i18n } from './locales/i18n'
 import router from './router'
 
 import 'virtual:uno.css'
-import 'antdv-next/dist/reset.css'
 
 import './assets/css/global.scss'
 

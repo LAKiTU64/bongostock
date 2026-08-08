@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
 
 import { LISTEN_KEY } from '@/constants'
-import { DEFAULT_WATCHLIST } from '@/market/marketService'
+import { DEFAULT_WATCHLIST } from '@/market/defaults'
 
 export interface WatchlistGroup {
   id: string

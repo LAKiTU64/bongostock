@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { HappyProvider } from '@antdv-next/happy-work-theme'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { error } from '@tauri-apps/plugin-log'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useEventListener } from '@vueuse/core'
-import { ConfigProvider, theme } from 'antdv-next'
 import { isString } from 'es-toolkit'
 import isURL from 'is-url'
 import { onMounted, watch } from 'vue'
@@ -16,7 +14,6 @@ import type { MarketSettingsSnapshot } from './stores/market'
 import { useTauriListen } from './composables/useTauriListen'
 import { useWindowState } from './composables/useWindowState'
 import { LANGUAGE, LISTEN_KEY } from './constants'
-import { getAntdLocale } from './locales/index.ts'
 import { hideWindow, showWindow } from './plugins/window'
 import { useAppStore } from './stores/app'
 import { useCatStore } from './stores/cat'
@@ -35,7 +32,6 @@ const shortcutStore = useShortcutStore()
 const watchlistStore = useWatchlistStore()
 const appWindow = getCurrentWebviewWindow()
 const { isRestored, restoreState } = useWindowState()
-const { darkAlgorithm, defaultAlgorithm } = theme
 const { locale } = useI18n()
 
 onMounted(async () => {
@@ -107,18 +103,5 @@ useEventListener('click', (event) => {
 </script>
 
 <template>
-  <HappyProvider
-    v-slot="{ wave }"
-    enabled
-  >
-    <ConfigProvider
-      :locale="getAntdLocale(generalStore.appearance.language)"
-      :theme="{
-        algorithm: generalStore.appearance.isDark ? darkAlgorithm : defaultAlgorithm,
-      }"
-      :wave="wave"
-    >
-      <RouterView v-if="isRestored" />
-    </ConfigProvider>
-  </HappyProvider>
+  <RouterView v-if="isRestored" />
 </template>

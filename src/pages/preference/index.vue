@@ -1,19 +1,23 @@
 <script setup lang="ts">
+import { HappyProvider } from '@antdv-next/happy-work-theme'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { Flex } from 'antdv-next'
-import { computed, ref, watch } from 'vue'
+import { ConfigProvider, Flex, theme } from 'antdv-next'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useTray } from '@/composables/useTray'
+import { getAntdLocale } from '@/locales/antd'
 import { useAppStore } from '@/stores/app'
 import { useGeneralStore } from '@/stores/general'
 import { isMac } from '@/utils/platform'
 
-import About from './components/about/index.vue'
-import Cat from './components/cat/index.vue'
-import General from './components/general/index.vue'
-import Market from './components/market/index.vue'
-import Shortcut from './components/shortcut/index.vue'
+import 'antdv-next/dist/reset.css'
+
+const About = defineAsyncComponent(() => import('./components/about/index.vue'))
+const Cat = defineAsyncComponent(() => import('./components/cat/index.vue'))
+const General = defineAsyncComponent(() => import('./components/general/index.vue'))
+const Market = defineAsyncComponent(() => import('./components/market/index.vue'))
+const Shortcut = defineAsyncComponent(() => import('./components/shortcut/index.vue'))
 
 useTray()
 const appStore = useAppStore()
@@ -21,6 +25,7 @@ const current = ref(0)
 const { t } = useI18n()
 const generalStore = useGeneralStore()
 const appWindow = getCurrentWebviewWindow()
+const { darkAlgorithm, defaultAlgorithm } = theme
 
 watch(() => generalStore.appearance.language, () => {
   appWindow.setTitle(t('pages.preference.title'))
@@ -61,50 +66,63 @@ const menus = computed(() => [
 </script>
 
 <template>
-  <Flex class="h-screen">
-    <div
-      class="h-full w-30 flex flex-col items-center gap-4 overflow-auto bg-gradient-from-blue-1 bg-gradient-to-black/1 bg-gradient-linear dark:bg-none"
-      :class="[isMac ? 'pt-8' : 'pt-4']"
-      data-tauri-drag-region
+  <HappyProvider
+    v-slot="{ wave }"
+    enabled
+  >
+    <ConfigProvider
+      :locale="getAntdLocale(generalStore.appearance.language)"
+      :theme="{
+        algorithm: generalStore.appearance.isDark ? darkAlgorithm : defaultAlgorithm,
+      }"
+      :wave="wave"
     >
-      <div class="flex flex-col items-center gap-2">
-        <div class="b-1 b-solid b-border-sec rounded-2xl">
-          <img
-            class="size-15"
-            data-tauri-drag-region
-            src="/logo.png"
-          >
+      <Flex class="h-screen">
+        <div
+          class="h-full w-30 flex flex-col items-center gap-4 overflow-auto bg-gradient-from-blue-1 bg-gradient-to-black/1 bg-gradient-linear dark:bg-none"
+          :class="[isMac ? 'pt-8' : 'pt-4']"
+          data-tauri-drag-region
+        >
+          <div class="flex flex-col items-center gap-2">
+            <div class="b-1 b-solid b-border-sec rounded-2xl">
+              <img
+                class="size-15"
+                data-tauri-drag-region
+                src="/logo.png"
+              >
+            </div>
+
+            <span class="font-bold">{{ appStore.name }}</span>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <div
+              v-for="(item, index) in menus"
+              :key="item.key"
+              class="size-20 flex flex-col cursor-pointer items-center justify-center gap-2 transition color-text-tertiary rounded-lg hover:bg-[--ant-color-fill-tertiary] dark:color-text-secondary"
+              :class="{ 'bg-container! color-blue-5! dark:color-blue-7! font-bold dark:bg-[--ant-color-fill-quaternary]!': current === index }"
+              @click="current = index"
+            >
+              <div
+                class="size-8"
+                :class="item.icon"
+              />
+
+              <span>{{ item.label }}</span>
+            </div>
+          </div>
         </div>
 
-        <span class="font-bold">{{ appStore.name }}</span>
-      </div>
-
-      <div class="flex flex-col gap-2">
         <div
           v-for="(item, index) in menus"
+          v-show="current === index"
           :key="item.key"
-          class="size-20 flex flex-col cursor-pointer items-center justify-center gap-2 transition color-text-tertiary rounded-lg hover:bg-[--ant-color-fill-tertiary] dark:color-text-secondary"
-          :class="{ 'bg-container! color-blue-5! dark:color-blue-7! font-bold dark:bg-[--ant-color-fill-quaternary]!': current === index }"
-          @click="current = index"
+          class="flex-1 overflow-auto bg-[--ant-color-fill-quaternary] p-4 dark:bg-container"
+          data-tauri-drag-region
         >
-          <div
-            class="size-8"
-            :class="item.icon"
-          />
-
-          <span>{{ item.label }}</span>
+          <component :is="item.component" />
         </div>
-      </div>
-    </div>
-
-    <div
-      v-for="(item, index) in menus"
-      v-show="current === index"
-      :key="item.key"
-      class="flex-1 overflow-auto bg-[--ant-color-fill-quaternary] p-4 dark:bg-container"
-      data-tauri-drag-region
-    >
-      <component :is="item.component" />
-    </div>
-  </Flex>
+      </Flex>
+    </ConfigProvider>
+  </HappyProvider>
 </template>
