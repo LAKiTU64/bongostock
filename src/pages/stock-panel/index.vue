@@ -215,8 +215,9 @@ function handleDragPointerEnd() {
 
 async function refreshQuotes() {
   const requestId = ++quoteRequestId
+  const activeCodes = activeGroup.value?.codes ?? []
 
-  if (watchlistStore.totalCodes === 0) {
+  if (activeCodes.length === 0) {
     quotes.value = []
     errorMessage.value = ''
     return
@@ -227,7 +228,7 @@ async function refreshQuotes() {
   resetIdleFade()
 
   try {
-    const nextQuotes = await fetchQuotes(watchlistStore.codes)
+    const nextQuotes = await fetchQuotes(activeCodes)
 
     if (requestId !== quoteRequestId) return
 
@@ -254,6 +255,15 @@ function selectGroup(id: string) {
 function togglePinned() {
   setPinned(!isPinned.value)
   resetIdleFade()
+}
+
+function handleRefresh() {
+  if (selectedQuote.value) {
+    reloadDetail()
+    return
+  }
+
+  void refreshQuotes()
 }
 
 function closePanel() {
@@ -352,7 +362,13 @@ function handleChartPointerMove(event: PointerEvent) {
 
   if (detailMode.value === 'day-k') {
     const visible = dailyKlines.value.slice(-30)
-    const index = nearestIndex(x, rect.width, visible.length)
+    const index = chartIndexAt(x, rect.width, visible.length, 'slot')
+
+    if (index < 0) {
+      clearChartHover()
+      return
+    }
+
     const kline = visible[index]
 
     if (!kline) return
@@ -368,7 +384,13 @@ function handleChartPointerMove(event: PointerEvent) {
   }
 
   const points = detailPoints.value
-  const index = nearestIndex(x, rect.width, points.length)
+  const index = chartIndexAt(x, rect.width, points.length, 'nearest')
+
+  if (index < 0) {
+    clearChartHover()
+    return
+  }
+
   const point = points[index]
 
   if (!point) return
@@ -382,9 +404,26 @@ function handleChartPointerMove(event: PointerEvent) {
   }
 }
 
-function nearestIndex(x: number, width: number, length: number) {
-  if (length <= 1 || width <= 0) return 0
-  return Math.max(0, Math.min(length - 1, Math.round(x / width * (length - 1))))
+/**
+ * Map a pointer x (element pixels) to a data index in chart coordinates.
+ * The SVG only draws data between CHART_PADDING_X and CHART_WIDTH -
+ * CHART_PADDING_X, so positions inside the padding return -1 (no hover)
+ * instead of snapping to the first/last point like a naive full-width
+ * mapping would.
+ */
+function chartIndexAt(x: number, width: number, length: number, mode: 'nearest' | 'slot') {
+  if (length <= 0 || width <= 0) return -1
+
+  const viewX = x / width * CHART_WIDTH
+
+  if (viewX < CHART_PADDING_X || viewX > CHART_WIDTH - CHART_PADDING_X) return -1
+
+  const innerWidth = CHART_WIDTH - CHART_PADDING_X * 2
+  const ratio = (viewX - CHART_PADDING_X) / innerWidth
+
+  if (mode === 'slot') return Math.min(length - 1, Math.floor(ratio * length))
+
+  return Math.max(0, Math.min(length - 1, Math.round(ratio * (length - 1))))
 }
 
 function clearChartHover() {
@@ -584,13 +623,13 @@ function buildKlineChart(klines: StockKline[]) {
       <button
         aria-label="刷新行情"
         class="refresh-button"
-        :disabled="loading"
-        title="刷新行情"
+        :disabled="loading || detailLoading"
+        :title="selectedQuote ? '刷新该股票详细行情' : '刷新行情'"
         type="button"
-        @click.stop="refreshQuotes"
+        @click.stop="handleRefresh"
         @pointerdown.stop
       >
-        {{ loading ? '…' : '↻' }}
+        {{ (loading || detailLoading) ? '…' : '↻' }}
       </button>
     </header>
 
@@ -623,17 +662,6 @@ function buildKlineChart(klines: StockKline[]) {
           <strong>{{ selectedQuote.name }}</strong>
           <span>{{ selectedQuote.code }}<template v-if="detailLastTimestamp"> · {{ detailLastTimestamp }}</template></span>
         </div>
-        <button
-          aria-label="刷新详细行情"
-          class="detail-refresh"
-          :disabled="detailLoading"
-          title="刷新详细行情"
-          type="button"
-          @click.stop="reloadDetail"
-          @pointerdown.stop
-        >
-          {{ detailLoading ? '…' : '↻' }}
-        </button>
       </header>
 
       <nav
@@ -922,36 +950,22 @@ function buildKlineChart(klines: StockKline[]) {
   cursor: grabbing;
 }
 
-.detail-back,
-.detail-refresh {
+.detail-back {
   display: grid;
   width: 22px;
   height: 21px;
   flex: none;
   place-items: center;
   padding: 0;
+  padding-bottom: 2px;
   border: 0;
   border-radius: 6px;
   background: rgb(68 61 62 / 9%);
   color: #443d3e;
   cursor: pointer;
   font: inherit;
-  font-size: 15px;
-  line-height: 1;
-}
-
-.detail-back {
-  padding-bottom: 2px;
   font-size: 19px;
-}
-
-.detail-refresh {
-  font-size: 13px;
-}
-
-.detail-refresh:disabled {
-  cursor: default;
-  opacity: 0.5;
+  line-height: 1;
 }
 
 .detail-title {

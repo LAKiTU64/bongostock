@@ -125,7 +125,7 @@ async function fetchBuiltInTrendSeries(
 
 async function fetchBuiltInDailyKlines(code: string, count = 30, force = false): Promise<StockKline[]> {
   const normalizedCode = code.trim().toUpperCase()
-  const cacheKey = `${normalizedCode}:${count}`
+  const cacheKey = `${normalizedCode}:${count}:qfq`
   const cached = getCached(klineCache, cacheKey)
 
   if (cached && !force) return cached
@@ -133,7 +133,10 @@ async function fetchBuiltInDailyKlines(code: string, count = 30, force = false):
   const result = await stocks.auto.getKlines(normalizedCode, {
     period: 'day',
     count,
-    adjust: 'none',
+    // Forward-adjusted prices keep the chart continuous across share splits
+    // (e.g. fund share splits like SH588170 on 2026-07-06), where raw prices
+    // would show a fake cliff.
+    adjust: 'qfq',
   })
 
   klineCache.set(cacheKey, { expiresAt: Date.now() + KLINE_CACHE_TTL_MS, value: result })
@@ -259,11 +262,20 @@ async function fetchTencentTrendSeries(
 
   if (points.length === 0) throw primaryError instanceof Error ? primaryError : new Error('暂无分时数据')
 
+  // Tencent has no real average price for indices: its volume/amount cover the
+  // whole market, so amount/(volume*100) yields a per-share market average
+  // (~17 CNY) instead of the index level. Pinning average to close keeps the
+  // chart scale correct; the average line simply overlaps the price line.
+  const isIndex = /^(?:SH000|SZ399)\d{3}$/.test(code)
+  const normalizedPoints = isIndex
+    ? points.map(point => ({ ...point, average: point.close }))
+    : points
+
   return {
     code,
     name: security.qt?.[apiCode]?.[1] || code,
     preClose: toFiniteNumber(security.qt?.[apiCode]?.[4]),
-    points,
+    points: normalizedPoints,
     source: 'tencent',
   }
 }
@@ -500,7 +512,7 @@ async function fetchExternalTrendSeries(code: string, days: 1 | 5, signal?: Abor
 }
 
 async function fetchExternalDailyKlines(code: string, count: number, _force: boolean) {
-  const payload = await requestExternal('/v1/klines', 'POST', { code, period: 'day', count })
+  const payload = await requestExternal('/v1/klines', 'POST', { code, period: 'day', count, adjust: 'qfq' })
   const rows = extractArray<ExternalKline>(payload, 'klines')
   return rows.map(normalizeExternalKline) as StockKline[]
 }
