@@ -1,5 +1,7 @@
 # Phase 1 Baseline
 
+> Historical implementation snapshot: this file records Phase 1 and is not the current product contract. See [Phase 6 baseline](PHASE_6_BASELINE.md) and [project handoff](PROJECT_HANDOFF.md).
+
 Date: 2026-08-07
 
 ## Compact desktop pet

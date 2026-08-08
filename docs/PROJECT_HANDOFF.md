@@ -4,17 +4,23 @@
 
 ## 当前阶段
 
-BongoStock 已完成个人使用 Alpha 的主要功能，当前进入稳定化与日常使用观察阶段。早期 `PHASE_0_BASELINE.md`～`PHASE_4_BASELINE.md` 是历史实施记录；当前状态以本文件和 `PHASE_5_BASELINE.md` 为准。
+BongoStock 当前处于 Phase 6：公开源码后的个人 Alpha 稳定化。主要功能已经可用，工作重点是实际使用、修复问题、macOS 回归和保持文档一致。
 
-安装包、公开仓库和正式发布暂不在当前范围内。
+- 公开仓库：<https://github.com/LAKiTU64/bongostock>
+- 默认分支：`main`
+- 应用版本：`0.1.0`
+- Bundle Identifier：`com.bongostock.desktop`
+- 正式发布：暂无安装包、签名、公证、GitHub Release 或自动更新
+
+Phase 0～5 文档是历史实施快照；当前状态以 `PHASE_6_BASELINE.md`、本文件和实际代码为准。
 
 ## 产品边界
 
 - 桌宠收起时不显示证券信息；
-- 行情浮窗打开时请求一次，手动刷新时再请求一次；
-- 浮窗关闭后不请求行情，不启动后台定时轮询；
-- 列表报价默认使用 `stock-api@2.7.3`，也可切换为外接 BongoStock API v1；
-- 不做自动交易、周 K/月 K、提醒、AI 分析或多数据源比较；
+- 行情浮窗打开或手动刷新时请求报价，关闭后不后台轮询；
+- 详情数据只在点击证券后加载；
+- 默认使用内置行情源，也可显式切换到外接 BongoStock API v1；
+- 不做自动交易、券商账户控制、周 K/月 K、提醒、AI、MCP 或后台交易日服务；
 - 行情仅供个人辅助参考，以券商终端为准。
 
 ## 当前功能
@@ -22,109 +28,99 @@ BongoStock 已完成个人使用 Alpha 的主要功能，当前进入稳定化�
 ### 桌宠与输入
 
 - Windows/macOS Tauri 透明无边框窗口；
-- 键盘按下和鼠标点击累计计数；
-- 左右拍爪响应，计数使用 Pinia + Tauri Store 本地保存；
-- 拖动、置顶、穿透、透明度、托盘和开机自启动；
-- 尺寸可在 50%～300% 连续调节；
-- 计数框最多按 9 位数 `999 999 999` 设计；
-- Windows 提供管理员权限状态、操作说明及“不再提示”开关。
+- 全局键盘按下和鼠标点击累计计数，使用 Pinia + Tauri Store 本地保存；
+- 计数框按最多 9 位数 `999 999 999` 设计；
+- 拖动、置顶、穿透、透明度、保持在屏幕内、托盘和开机自启动；
+- 尺寸在 50%～300% 连续调节；
+- Windows 提供管理员权限状态、操作说明和“不再提示”开关。
 
-### 皮肤
+### 模型与皮肤
 
-- `builtin:mmmmmoko`：MMmmmoko 的 Bongo-Cat-Mver Live2D 标准模型，由 ayangweb/BongoCat 收录；这是唯一内置皮肤；
-- 其他皮肤通过受限的 `.bongoskin` 数据包导入，导入文件保存在应用数据目录；
-- `github`/`steam` 只作为旧配置的兼容标识，用户界面显示作者名或皮肤包名称；
-- 导入包只允许 PNG、JSON 和 NOTICE 文件，限制大小、数量和路径，禁止可执行内容；
-- StrayRogue 包保存在项目外的个人目录，不进入源码、构建产物或公开发布；
-- 所有皮肤共享计数、拍爪、菜单和窗口缩放功能；
-- 本机游戏素材仅限本地使用，在获得明确许可前不得进入公开仓库或发行包。
+- `builtin:mmmmmoko`：MMmmmoko 经典小键盘标准模式；
+- `builtin:mmmmmoko-keyboard`：MMmmmoko 经典小键盘键盘模式；
+- 两套模型使用 Awesome-BongoCat 兼容目录，公开仓库内置背景、Live2D、键位图层和预览；
+- 标准模式显示鼠标垫与键盘；键位图层与背景共用原版坐标体系，同侧只显示最后一个按键反馈；
+- 鼠标使用模型专用参数，键盘资源目录决定左右爪动作；
+- BongoStock 计数框和 SVG 菜单框保留在模型下方；
+- 自定义皮肤使用 `layered-png-v1`，通过 `.bongoskin`/ZIP 导入；
+- 导入器校验清单、大小、文件数量、扩展名和路径，防止目录穿越；
+- 导入皮肤拍爪时动作爪层位于两个方框上方；
+- 旧 `github`/`steam` 值只用于本地设置迁移；
+- StrayRogue/Steam 素材不在源码、Git 历史或公开构建中。
 
 ### 行情浮窗
 
-- 点击桌宠切换独立 `stock-panel` 窗口；
-- 每次打开都按桌宠当前位置重新计算：优先下方、空间不足时上方，并限制在当前显示器工作区；
-- 浮窗可拖动，但拖动位置不作为下一次打开位置；
+- 点击桌宠切换独立 `stock-panel`；
+- 每次打开按桌宠位置重新计算坐标：优先下方、空间不足时上方，并限制在显示器工作区；
+- 浮窗可拖动，但拖动位置不作为下次打开坐标；
 - 点击桌宠和浮窗之外的区域默认关闭；
-- 当前打开期间可以临时常驻，下一次打开恢复为非驻留；
+- 临时常驻只对当前一次打开有效；
 - `Esc` 始终有效；
-- 多分组横向标签和双栏紧凑行情列表；
-- 默认 2 秒无操作后淡出，等待时间和淡出透明度均可设置；
-- 显示名称、代码、价格、涨跌幅和更新时间；
-- 打开或手动刷新时各请求一次，使用 loading 锁避免重复并发。
-- 点击证券后才请求详细数据，提供分时、5 日和日 K；图表悬停显示价格，日 K 显示开高低收；
-- 详细走势请求失败时不影响列表行情；详情页保留重试入口。
+- 横向分组标签和双栏紧凑列表；
+- 默认 2 秒无操作后淡出至 28%，等待范围 1～300 秒，不透明度范围 10%～100%；
+- 显示名称、统一代码、价格、涨跌幅和更新时间；
+- 打开或手动刷新时请求报价，使用 loading 锁避免重复并发。
 
 ### 自选与代码匹配
 
-- 最多 8 个分组、总计最多 50 只股票或基金；
-- 分组支持创建、重命名和删除，至少保留一个分组；
-- 支持 `SH`/`SZ` 加 6 位代码，也支持直接输入 6 位代码；
-- 纯数字代码按沪深规则补齐交易所，并可调用在线搜索确认证券名称与候选项；
-- 自动去重，同一代码不能重复出现在不同分组；
-- 新设备默认创建一个“自选股”分组，包含上证指数、深证成指、沪深 300、科创 50；
-- 支持 `588170`、`589850` 等场内基金代码；
-- 设置页同时显示证券名称与统一代码。
+- 最多 8 个分组、所有分组合计最多 50 个证券；
+- 分组支持创建、重命名和删除，至少保留一个；
+- 支持 `SH`/`SZ` + 6 位代码，也支持直接输入 6 位代码；
+- `5`/`6` 开头默认补为上海，`0`～`3` 开头默认补为深圳；
+- 在线搜索确认证券名称与候选项；
+- 同一证券不能跨组重复；
+- 新数据默认“自选股”包含上证指数、深证成指、沪深 300、科创 50；
+- 支持 `588170`、`589850` 等场内基金代码。
+
+### 详情图表
+
+- 点击证券后并行加载分时、5 日和日 K；
+- 分时/5 日优先东方财富，失败时回退腾讯；
+- 日 K 使用 `stock-api@2.7.3`；
+- 分时缓存 30 秒，日 K 缓存 5 分钟；
+- 分时显示四个时间刻度和午间分割线，5 日/日 K 显示首尾日期；
+- 图表悬停显示时间/日期和价格，日 K 显示开高低收；
+- 详情失败不影响列表报价，并保留刷新/重试入口。
 
 ### 行情数据源
 
-- 外接服务支持 HTTP/HTTPS，并限制在配置主机及 `/v1/` 路径；
-- 外接模式默认不自动回退内置源，避免用户误以为没有发生外部请求；
-- Bearer Token 只在当前运行期间保存在内存，不写入 Pinia Store；
-- 代码放在 POST body 中以减少 URL/访问日志暴露，但 HTTP 仍不加密，HTTPS 仍不能隐藏外接服务器自身看到的代码。
-
-## 性能基线（Windows 开发运行）
-
-整个 Tauri/WebView2 进程树静置采样：
-
-| 皮肤 | 总 CPU | 私有内存 | 持续 3D GPU |
-|---|---:|---:|---:|
-| MMmmmoko Live2D | 约 2.20% | 约 530.5 MB | 约 1.26% |
-| StrayRogue 静态图层 | 约 0.57% | 约 488.8 MB | 采样期未检测到持续占用 |
-
-当前配置会预创建 main、preference、stock-panel 三个 WebView，因此总内存看起来偏高。个人使用阶段暂不为此重构窗口生命周期。
+- 默认内置源：`stock-api@2.7.3`、东方财富与腾讯公开接口；
+- 可切换外接 BongoStock API v1；
+- 外接支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时；
+- 外接模式不静默回退内置源；
+- Token 仅在内存中保存；
+- Rust 层限制 GET/POST、配置主机、`/v1/` 路径和 2 MB 响应，禁止重定向；
+- 代码位于 POST body 只能减少 URL 日志暴露，不能对外接服务器隐藏代码。
 
 ## 关键文件
 
 | 文件 | 作用 |
 |---|---|
-| `src/components/CompactCat.vue` | 内置 Live2D、导入图层皮肤、计数框、菜单 SVG 与拍爪图层 |
-| `src/pages/main/index.vue` | 主窗口尺寸、缩放、拖动、点击和输入入口 |
-| `src/composables/useStockPanel.ts` | 浮窗开关、自适应定位和屏幕边界处理 |
-| `src/pages/stock-panel/index.vue` | 分组、双栏行情、常驻、淡出与关闭交互 |
-| `src/market/marketService.ts` | 内置/外接行情 Provider、批量报价、详细走势、日 K 与证券代码匹配 |
-| `src/stores/watchlist.ts` | 默认分组、50 只上限、增删、迁移与面板设置 |
-| `src/pages/preference/components/market/index.vue` | 分组和自选设置 UI |
-| `src/pages/preference/components/cat/index.vue` | 皮肤和 50%～300% 窗口缩放设置 |
-| `src/pages/preference/components/general/components/windows-permissions/index.vue` | Windows 管理员权限说明和提示开关 |
-| `src/stores/cat.ts` | 桌宠设置、当前皮肤和累计计数 |
-| `src/stores/skin.ts` | 内置/导入皮肤注册表与旧配置迁移 |
-| `src-tauri/src/utils/skin.rs` | `.bongoskin` 安全校验、解压、列举和删除 |
-| `src-tauri/src/utils/market.rs` | 受限 HTTP/HTTPS 外接行情请求 |
-| `src-tauri/tauri.conf.json` | 三个窗口、资源和打包配置 |
+| `src/components/CompactCat.vue` | Live2D、键位叠图、导入皮肤、计数框、菜单和动作层级 |
+| `src/pages/main/index.vue` | 主窗口尺寸、缩放、拖动、点击和全局输入入口 |
+| `src/composables/useStockPanel.ts` | 浮窗开关、自适应定位和显示器边界 |
+| `src/pages/stock-panel/index.vue` | 分组列表、详情图表、常驻、淡出和关闭交互 |
+| `src/market/marketService.ts` | 内置/外接 Provider、报价、走势、日 K、搜索与缓存 |
+| `src/stores/watchlist.ts` | 默认分组、8 组/50 只上限、迁移和淡出设置 |
+| `src/stores/market.ts` | 行情源、外接地址、超时和内存 Token |
+| `src/stores/skin.ts` | 两套内置模型、导入皮肤和旧值迁移 |
+| `src/skins/skinService.ts` | 前端皮肤导入、列举和删除接口 |
+| `src-tauri/src/utils/skin.rs` | 皮肤 ZIP 安全校验、安装、列举和删除 |
+| `src-tauri/src/utils/market.rs` | 受限外接 HTTP/HTTPS 请求 |
+| `scripts/auditReleaseAssets.mjs` | 本地发行资产扫描 |
+| `src-tauri/tauri.conf.json` | 窗口、安全策略、资源和打包目标 |
 
-## 当前验证结果
+## 仓库与本地目录
 
-- Windows 开发依赖已经配置，可以运行 `pnpm tauri dev`；
-- 桌宠、内置皮肤、导入皮肤、缩放、计数、菜单和行情浮窗已通过构建链路验证；
-- 多分组、50 只上限、纯代码匹配、基金代码和设置持久化已实现；
-- 浮窗外部点击、临时常驻、`Esc`、淡出和自适应位置已实机验证；
-- 最新相关 ESLint 检查和 Vite 生产构建通过；
-- Vite 主包约 1.24 MB，存在非阻塞的大包提示；
-- 当前没有自动化测试文件。个人项目只在后续重构核心数据逻辑时考虑少量防回归测试。
+- 本地项目：`C:\Users\Jason\Documents\BongoStock`；
+- 远端：`origin = https://github.com/LAKiTU64/bongostock.git`；
+- `main` 跟踪 `origin/main`；
+- `.gitignore` 排除 `node_modules/`、`dist/`、`target/`、ZIP、`.bongoskin`、凭据和本地快照；
+- 项目外个人皮肤与 `C:\Users\Jason\Apps\BongoStock` 的手工部署目录不属于仓库。
 
-## 下一步
+## 验证
 
-1. 继续个人日常使用，记录真实出现的问题；
-2. 最新改动在 macOS 设备上做一次轻量回归，重点检查字体、缩放、权限与透明窗口；
-3. 保持文档与行为同步；
-4. 公开发布时只打包 MMmmmoko；StrayRogue `.bongoskin` 必须排除，除非取得明确再分发授权；
-5. 用户明确需要时再考虑安装包。
-
-不要主动扩展为复杂测试体系，也不要自行增加自动轮询、交易服务、周 K/月 K、提醒、AI 或 MCP。
-
-## 新设备启动
-
-不要跨设备复用 `node_modules/`、`dist/` 或 `target/`。
+常规验证：
 
 ```bash
 pnpm install --frozen-lockfile
@@ -132,17 +128,36 @@ pnpm exec tsc --noEmit
 pnpm exec eslint src
 pnpm run build:vite
 cargo check --locked
+pnpm run audit:release
+```
+
+运行完整应用：
+
+```bash
 pnpm tauri dev
 ```
 
-当前没有建立版本管理历史。除非用户在当前任务明确授权，不执行 `git init`、提交、推送、tag 或发布。
+当前已有两项 Rust 单元测试，覆盖 Windows ZIP 分隔符标准化和父目录穿越拒绝。无需建立复杂测试体系；核心数据迁移或安全边界变化时再补针对性测试。
 
-## 2026-08-08 模型兼容更新
+## 平台状态
 
-- 内置模型同时提供 `经典小键盘 · 标准模式` 和 `经典小键盘 · 键盘模式`。
-- 两套模型使用 Awesome-BongoCat 兼容的 Live2D 目录结构；标准模式的背景层包含鼠标垫和键盘。
-- 键盘模式读取 `resources/left-keys`、`resources/right-keys`，并将全局键盘事件映射到左右爪和按键图层。
-- 原有 `.bongoskin` 分层 PNG 导入继续保留，作为独立的 BongoStock 自定义皮肤引擎。
-- `builtin:mmmmmoko` 继续指向标准模式；新增 `builtin:mmmmmoko-keyboard` 指向键盘模式。
+### Windows
 
-模型来源索引：[ayangweb/Awesome-BongoCat](https://github.com/ayangweb/Awesome-BongoCat)。第三方模型的作者和授权仍需逐包确认，发布时不自动打包未获再分发许可的模型。
+- 本机 Node、pnpm、Rust MSVC、WebView2 和 Visual Studio Build Tools 已可用；
+- Debug 构建与手工部署链路已验证；
+- Tauri 已配置 NSIS `.exe` 安装包，但当前不发布。
+
+### macOS
+
+- 工程保留 macOS 权限与 DMG/App 配置；
+- 全局输入需要 Input Monitoring；
+- 最新模型、图表、字体、缩放和透明窗口改动仍需轻量实机回归；
+- DMG 对外分发前需要签名与公证。
+
+## 下一步
+
+1. 继续日常使用并修复可复现问题；
+2. 完成 macOS 轻量回归；
+3. 保持 README、Phase 6、产品方案和接续文档同步；
+4. 面向他人分发前确认内置模型再分发条款，并处理签名、公证和安装包；
+5. 不主动增加后台轮询、自动交易、周 K/月 K、提醒、AI 或 MCP。

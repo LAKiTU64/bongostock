@@ -1,45 +1,59 @@
 # 新设备 Codex 接续提示
 
-将 BongoStock 源代码复制到新设备后，把下面内容交给 Codex：
+这份文件用于在另一台设备或新的 Codex 任务中继续开发 BongoStock。当前事实以源码、[Phase 6 基线](docs/PHASE_6_BASELINE.md)和[项目接续总览](docs/PROJECT_HANDOFF.md)为准。
+
+## 获取项目
+
+```powershell
+git clone https://github.com/LAKiTU64/bongostock.git
+cd bongostock
+corepack enable
+pnpm install --frozen-lockfile
+```
+
+不要复制或提交 `node_modules/`、`target/`、`dist/`、安装包、日志、应用数据目录、`.bongoskin` 或 ZIP 文件。
+
+## 可直接交给 Codex 的上下文
 
 ```text
-你现在接手我的 BongoStock 个人桌宠项目。请先完整阅读：
+请接续 BongoStock 项目。
 
+仓库：https://github.com/LAKiTU64/bongostock
+默认分支：main
+版本：0.1.0
+当前阶段：Phase 6，个人 Alpha 稳定化；尚无正式 Release。
+
+请先完整阅读：
 1. README.md
 2. docs/PROJECT_HANDOFF.md
-3. docs/PHASE_5_BASELINE.md
-4. docs/BongoStock_Product_Spec_v0.1.md
-5. THIRD_PARTY_NOTICES.md
-6. docs/DEVICE_TRANSFER_CHECKLIST.md
+3. docs/PHASE_6_BASELINE.md
+4. THIRD_PARTY_NOTICES.md
+5. 与本次任务直接相关的代码
 
-Phase 0～4 文档是历史实施记录；当前行为以上述文件和实际代码为准。读取文档后必须检查代码，不能只凭文档猜测。
+当前实现要点：
+- Tauri 2 + Vue 3 + TypeScript + Pinia + Rust；
+- 内置 MMmmmoko 标准模式和键盘模式，兼容 Awesome-BongoCat 模型目录；
+- 可本地导入 layered-png-v1 .bongoskin/ZIP 皮肤；
+- StrayRogue/Steam 素材不在源码、Git 历史或公开构建中，不得补入仓库；
+- 默认自选组包含上证指数、深证成指、沪深 300、科创 50；
+- 行情支持分时、5 日、日 K，详情仅在点击证券后加载；
+- 数据源可选择内置服务或用户配置的 HTTP/HTTPS BongoStock API v1；
+- 外接模式不静默回退到内置源，Bearer Token 仅保存在当前会话；
+- Windows 开发/构建链已验证，macOS 仍需真机回归；
+- 当前没有签名、公证、安装器发布、自动更新或 GitHub Release。
 
-当前状态：
-
-- 个人使用 Alpha，主要功能已完成，安装包暂不处理；
-- 记录键盘和鼠标点击次数，支持拍爪、拖动、托盘和本地持久化；
-- 默认只内置 MMmmmoko；其他皮肤通过项目外 `.bongoskin` 包导入；
-- 内部 github/steam 标识只用于兼容已有设置，新内置值为 `builtin:mmmmmoko`；
-- StrayRogue 对应的本机游戏素材仅供个人本地使用，不得上传公开仓库或打入发行包；
-- 桌宠尺寸支持 50%～300%；
-- 行情最多 8 个分组、总计 50 只股票或基金；新设备默认“自选股”包含四个指数；
-- 行情源可选内置 stock-api 或外接 BongoStock API v1，外接支持 HTTP/HTTPS；
-- 支持 SH/SZ 完整代码和 6 位纯数字代码，并在线匹配名称；
-- 行情浮窗为双栏，可拖动、淡出、临时常驻；每次打开时自动生成在桌宠附近；
-- 行情只在打开或手动刷新时请求，不后台轮询；
-- Windows 管理员权限提示可以关闭；
-- 不需要复杂自动化测试；修改核心数据规则时才考虑少量单元测试；
-- 不做自动交易、K 线、提醒、AI、MCP 或安装包，除非我明确提出；
-- 不执行 git init、commit、push、tag 或发布，除非我在当前任务明确授权。
-
-新设备不要复用其他系统生成的 node_modules、dist 或 target。使用锁文件重新安装并执行：
-
-pnpm install --frozen-lockfile
+修改前先检查 git status，保留用户未提交的改动。修改后至少执行：
 pnpm exec tsc --noEmit
 pnpm exec eslint src
 pnpm run build:vite
-cargo check --locked
-pnpm tauri dev
+pnpm run audit:release
+cd src-tauri && cargo test --locked
 
-请用中文沟通，保持项目简单，以真实使用问题为优先，不要自行扩展需求。
+只有用户明确要求发布时才 commit/push。不得上传私人皮肤包、凭据、本地设置、日志或构建产物。
 ```
+
+## 本地私人数据
+
+应用设置、计数、自选股和导入皮肤不属于 Git 仓库。需要迁移时，应在两台个人设备之间单独复制，并在复制前退出应用。含有 StrayRogue/Steam 素材的皮肤包只限本地学习使用，不得放入公开仓库或发布产物。
+
+更完整步骤见[设备迁移清单](docs/DEVICE_TRANSFER_CHECKLIST.md)。

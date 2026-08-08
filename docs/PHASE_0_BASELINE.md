@@ -1,5 +1,7 @@
 # Phase 0 基线
 
+> 历史实施快照：本文记录 Phase 0 当时的代码与环境，不代表当前行为。当前状态见 [Phase 6 基线](PHASE_6_BASELINE.md)和[项目接续总览](PROJECT_HANDOFF.md)。
+
 日期：2026-08-07
 
 ## 项目

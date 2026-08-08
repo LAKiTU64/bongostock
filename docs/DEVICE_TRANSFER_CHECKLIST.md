@@ -1,81 +1,90 @@
 # 设备迁移清单
 
-## 目标
+## 迁移范围
 
-在不依赖版本管理工具的情况下，将 BongoStock 的完整可编辑源代码从当前设备迁移到个人设备，同时避免携带构建缓存、日志、凭据和单位信息。
+BongoStock 的公开源码通过 GitHub 迁移；个人设置、计数、自选股和导入皮肤按需在个人设备之间单独迁移。不要把两类内容混进同一个压缩包或提交。
 
-## 迁移前检查
+公开仓库：<https://github.com/LAKiTU64/bongostock>
 
-1. 确认单位允许将个人项目源代码从单位设备带出。
-2. 确认项目没有包含单位代码、内部文档、内部域名、证书、账号、数据或素材。
-3. 搜索 `.env`、密钥、Token、Cookie、证书、代理地址和内部 URL。
-4. 确认 `LICENSE`、`THIRD_PARTY_NOTICES.md` 和产品文档存在。
-5. 记录当前 Node、pnpm、Rust 和系统版本。
+## 1. 在新设备获取源码
 
-## 应迁移的内容
+```powershell
+git clone https://github.com/LAKiTU64/bongostock.git
+cd bongostock
+corepack enable
+pnpm install --frozen-lockfile
+```
 
-- `src/`
-- `src-tauri/`
-- `public/`
-- `scripts/`
-- `docs/`
-- `package.json`
-- `pnpm-lock.yaml`
-- `pnpm-workspace.yaml`
-- `Cargo.toml`
-- `Cargo.lock`
-- TypeScript、Vite、ESLint 和 UnoCSS 配置
-- `README.md`
-- `LICENSE`
-- `THIRD_PARTY_NOTICES.md`
+macOS/Linux 将 PowerShell 命令换成对应终端即可。Node.js、pnpm、Rust、平台编译工具和 Tauri 系统依赖见根目录 [README](../README.md)。
 
-## 不迁移的内容
+不需要迁移：
 
 - `node_modules/`
-- `dist/`
 - `target/`
-- 应用日志
-- 系统钥匙串内容
-- `.env` 和本机凭据
-- 编辑器缓存
-- 临时文件
-- 安装包和编译产物
+- `dist/`
+- `src-tauri/target/`
+- 日志、崩溃转储和临时文件
+- NSIS、DMG 等安装产物
+- 任何凭据、Token 或公司环境信息
 
-## 推荐迁移方式
+## 2. 可选：迁移个人应用数据
 
-在获得单位许可后，将项目目录复制到一个新的临时目录，排除构建产物和敏感文件，再创建加密归档。归档密码通过独立渠道保存，并为归档计算 SHA-256；个人设备收到文件后先校验 SHA-256。
+只有确实需要保留下列内容时才迁移本地应用数据：
 
-个人设备收到归档后：
+- 累计点击/按键计数；
+- 窗口、透明度、淡出、快捷键等偏好；
+- 自选分组与证券列表；
+- 已导入的本地 `.bongoskin` 皮肤。
 
-1. 解压到个人开发目录；
-2. 重新安装 Node、pnpm 和 Rust；
-3. 执行 `pnpm install --frozen-lockfile`；
-4. 执行 `pnpm build`；
-5. 执行 `cargo check --locked`；
-6. 执行 `pnpm tauri dev`；
-7. 检查桌宠、托盘、设置和快捷键；
-8. macOS 重新授权 Input Monitoring；
-9. 完成敏感信息扫描后，再决定是否建立版本管理或发布到 GitHub。
+操作原则：
 
-`node_modules/`、`dist/` 和 `target/` 不能跨设备或跨操作系统复用。当前可迁移源文件约 7.3 MB，本机构建缓存约 5.3 GB。
+1. 两台设备都退出 BongoStock；
+2. 在旧设备上找到 Bundle Identifier `com.bongostock.desktop` 对应的应用数据目录；
+3. 先做一份私下备份，再复制到新设备的相应目录；
+4. 启动应用，核对计数、设置、自选组和皮肤；
+5. 若数据格式不兼容，删除新设备上的复制件并让应用重新初始化。
 
-个人设备为 Windows 时，根据 Tauri 官方前置要求安装 Microsoft C++ Build Tools、WebView2 和 stable MSVC Rust toolchain：<https://v2.tauri.app/start/prerequisites/>。
+Windows 通常位于用户的 `AppData` 范围，macOS 通常位于用户 `Library` 范围；实际路径以当前 Tauri Store 和应用日志显示为准，不要把绝对用户路径写入仓库。
 
-## GitHub 发布前
+## 3. 私人皮肤边界
 
-1. 先确认劳动合同、知识产权归属、保密协议、可接受使用政策和开源贡献政策。
-2. 单位未明确允许时，不要从单位设备向个人 GitHub 上传，即使仓库设置为 Private。
-3. 使用个人设备和个人账号建立仓库。
-4. 初次上传前扫描全部历史和文件内容，确认不存在单位信息或凭据。
-5. 保留 BongoCat MIT License 与第三方声明。
-6. 为个人 GitHub 账号启用双因素认证，并使用独立的个人 SSH 密钥或细粒度 Token。
+- 公开仓库只内置 MMmmmoko 标准模式和键盘模式；
+- StrayRogue/Steam 素材不在源码、Git 历史或公开构建中；
+- 含这类素材的 `.bongoskin`/ZIP 只能在个人设备之间私下迁移；
+- 不要上传到 GitHub、Release、网盘公开链接或 issue 附件；
+- 导入皮肤前检查来源、授权和 `NOTICE.txt`。
 
-Private 仓库仍然属于向外部平台上传。单位未明确允许时，不以 Private 作为绕过单位审批的方式。
+## 4. 新设备验证
 
-GitHub 安全参考：
+```powershell
+pnpm exec tsc --noEmit
+pnpm exec eslint src
+pnpm run build:vite
+pnpm run audit:release
+Push-Location src-tauri
+cargo test --locked
+Pop-Location
+pnpm tauri dev
+```
 
-- 仓库可见性：<https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility>
-- Push Protection：<https://docs.github.com/en/code-security/concepts/secret-security/push-protection>
-- 双因素认证：<https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa/about-two-factor-authentication>
-- SSH 密钥：<https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account>
-- Personal Access Token：<https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens>
+手动核对：
+
+- 两套内置 MMmmmoko 模型均可显示；
+- 鼠标和键盘动作位置正确；
+- 计数框、SVG 菜单框和窗口缩放正常；
+- 默认“自选股”含四个指数；
+- 分时、5 日、日 K 可打开并显示悬停价格；
+- 外接行情的 HTTP/HTTPS、超时和临时 Token 行为符合预期；
+- Windows 全局输入权限提示正常；macOS 在真机授权后回归输入监听。
+
+## 5. Git 安全检查
+
+提交前执行：
+
+```powershell
+git status --short
+git diff --check
+git ls-files | Select-String -Pattern 'stray|steam-bongocat|\.bongoskin$|\.zip$' -CaseSensitive:$false
+```
+
+最后一条正常情况下不应返回私人皮肤资产。仅在用户明确要求发布当前改动时才推送远端。
