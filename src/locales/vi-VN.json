@@ -149,7 +149,8 @@
           "aboutApp": "Thông tin ứng dụng",
           "appLog": "Nhật ký ứng dụng",
           "appInfo": "Thông tin ứng dụng",
-          "openSource": "Mã nguồn"
+          "openSource": "Mã nguồn",
+          "acknowledgements": "Lời cảm ơn"
         },
         "hints": {
           "appInfo": "Sao chép thông tin để gửi bug.",

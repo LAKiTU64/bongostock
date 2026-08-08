@@ -5,15 +5,18 @@ import { useEventListener } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import type { IntradayPoint, StockKline, StockQuote, TrendSeries } from '@/market/marketService'
+import type { MarketSettingsSnapshot } from '@/stores/market'
 import type { StockPanelSettings, WatchlistGroup } from '@/stores/watchlist'
 
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
 import { hideWindow } from '@/plugins/window'
+import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
 
 const appWindow = getCurrentWebviewWindow()
+const marketStore = useMarketStore()
 const watchlistStore = useWatchlistStore()
 const quotes = ref<StockQuote[]>([])
 const loading = ref(false)
@@ -34,6 +37,7 @@ const klineError = ref('')
 let idleFadeTimer: ReturnType<typeof setTimeout> | undefined
 let detailAbortController: AbortController | undefined
 let detailRequestId = 0
+let quoteRequestId = 0
 let dragPointerStart: { x: number, y: number } | undefined
 let unlistenFocus: (() => void) | undefined
 
@@ -136,6 +140,14 @@ useTauriListen<StockPanelSettings>(LISTEN_KEY.STOCK_PANEL_SETTINGS_CHANGED, ({ p
   resetIdleFade()
 })
 
+useTauriListen<MarketSettingsSnapshot>(LISTEN_KEY.MARKET_SETTINGS_CHANGED, ({ payload }) => {
+  marketStore.replaceFromEvent(payload)
+  closeDetail()
+  quotes.value = []
+  errorMessage.value = ''
+  void refreshIfVisible()
+})
+
 useEventListener('keydown', (event) => {
   resetIdleFade()
 
@@ -202,7 +214,8 @@ function handleDragPointerEnd() {
 }
 
 async function refreshQuotes() {
-  if (loading.value) return
+  const requestId = ++quoteRequestId
+
   if (watchlistStore.totalCodes === 0) {
     quotes.value = []
     errorMessage.value = ''
@@ -214,11 +227,17 @@ async function refreshQuotes() {
   resetIdleFade()
 
   try {
-    quotes.value = await fetchQuotes(watchlistStore.codes)
+    const nextQuotes = await fetchQuotes(watchlistStore.codes)
+
+    if (requestId !== quoteRequestId) return
+
+    quotes.value = nextQuotes
   } catch (error) {
+    if (requestId !== quoteRequestId) return
+
     errorMessage.value = `行情不可用：${error instanceof Error ? error.message : String(error)}`
   } finally {
-    loading.value = false
+    if (requestId === quoteRequestId) loading.value = false
   }
 }
 

@@ -65,6 +65,7 @@ const externalTimeout = computed({
 const isTestingConnection = ref(false)
 const connectionMessage = ref('')
 const externalUsesHttp = computed(() => externalBaseUrl.value.trim().toLowerCase().startsWith('http://'))
+let quoteNameRequestId = 0
 
 watch(groups, (values) => {
   if (values.some(group => group.id === selectedGroupId.value)) return
@@ -72,7 +73,11 @@ watch(groups, (values) => {
   selectedGroupId.value = values[0]?.id ?? ''
 }, { immediate: true })
 
-watch(() => [...watchlistStore.codes], loadQuoteNames, { immediate: true })
+watch(
+  [() => marketStore.source, () => [...watchlistStore.codes]],
+  ([, codes]) => void loadQuoteNames(codes),
+  { immediate: true },
+)
 
 watch(inputCode, () => {
   securityCandidates.value = []
@@ -200,6 +205,8 @@ async function testConnection() {
 }
 
 async function loadQuoteNames(codes: string[]) {
+  const requestId = ++quoteNameRequestId
+
   if (codes.length === 0) {
     quoteNames.value = {}
     return
@@ -207,6 +214,9 @@ async function loadQuoteNames(codes: string[]) {
 
   try {
     const quotes = await fetchQuotes(codes)
+
+    if (requestId !== quoteNameRequestId) return
+
     quoteNames.value = Object.fromEntries(quotes
       .filter(quote => quote.name && quote.name !== '---')
       .map(quote => [quote.code.toUpperCase(), quote.name]))

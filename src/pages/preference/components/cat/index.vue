@@ -102,7 +102,6 @@ async function handleDelete(id: string) {
       vertical
     >
       <div class="mb-3 flex items-center justify-between gap-3">
-        <span class="text-3 color-text-tertiary">{{ $t('pages.preference.cat.hints.skinSettings') }}</span>
         <Button
           type="primary"
           @click="handleImport"

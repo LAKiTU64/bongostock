@@ -49,8 +49,7 @@ Windows 通常位于用户的 `AppData` 范围，macOS 通常位于用户 `Libra
 ## 3. 私人皮肤边界
 
 - 公开仓库只内置 MMmmmoko 标准模式和键盘模式；
-- StrayRogue/Steam 素材不在源码、Git 历史或公开构建中；
-- 含这类素材的 `.bongoskin`/ZIP 只能在个人设备之间私下迁移；
+- 个人导入的 `.bongoskin`/ZIP 只能在个人设备之间私下迁移；
 - 不要上传到 GitHub、Release、网盘公开链接或 issue 附件；
 - 导入皮肤前检查来源、授权和 `NOTICE.txt`。
 
@@ -84,7 +83,7 @@ pnpm tauri dev
 ```powershell
 git status --short
 git diff --check
-git ls-files | Select-String -Pattern 'stray|steam-bongocat|\.bongoskin$|\.zip$' -CaseSensitive:$false
+git ls-files | Select-String -Pattern '\.bongoskin$|\.zip$' -CaseSensitive:$false
 ```
 
 最后一条正常情况下不应返回私人皮肤资产。仅在用户明确要求发布当前改动时才推送远端。

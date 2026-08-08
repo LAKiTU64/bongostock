@@ -149,7 +149,8 @@
           "aboutApp": "Sobre o Aplicativo",
           "appLog": "Logs do Aplicativo",
           "appInfo": "Informações do Aplicativo",
-          "openSource": "Código Aberto"
+          "openSource": "Código Aberto",
+          "acknowledgements": "Agradecimentos"
         },
         "hints": {
           "appInfo": "Copiar informações do aplicativo para incluir em relatórios de bugs.",

@@ -1,4 +1,5 @@
 export const BONGOCAT_UPSTREAM_LINK = 'https://github.com/ayangweb/BongoCat'
+export const BONGOSTOCK_REPOSITORY_LINK = 'https://github.com/LAKiTU64/bongostock'
 
 export const LISTEN_KEY = {
   SHOW_WINDOW: 'show-window',

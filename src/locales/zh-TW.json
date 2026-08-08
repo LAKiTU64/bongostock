@@ -149,7 +149,8 @@
           "aboutApp": "關於軟體",
           "appLog": "軟體日誌",
           "appInfo": "軟體資訊",
-          "openSource": "開源網址"
+          "openSource": "開源網址",
+          "acknowledgements": "鳴謝"
         },
         "hints": {
           "appInfo": "複製軟體資訊並提供給 Bug Issue。",

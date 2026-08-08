@@ -10,7 +10,7 @@ import { useI18n } from 'vue-i18n'
 
 import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
-import { BONGOCAT_UPSTREAM_LINK } from '@/constants'
+import { BONGOCAT_UPSTREAM_LINK, BONGOSTOCK_REPOSITORY_LINK } from '@/constants'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
@@ -54,6 +54,14 @@ async function copyInfo() {
     </ProListItem>
 
     <ProListItem :title="$t('pages.preference.about.labels.openSource')">
+      <template #description>
+        <a :href="BONGOSTOCK_REPOSITORY_LINK">
+          {{ BONGOSTOCK_REPOSITORY_LINK }}
+        </a>
+      </template>
+    </ProListItem>
+
+    <ProListItem :title="$t('pages.preference.about.labels.acknowledgements')">
       <template #description>
         <a :href="BONGOCAT_UPSTREAM_LINK">
           {{ BONGOCAT_UPSTREAM_LINK }}
