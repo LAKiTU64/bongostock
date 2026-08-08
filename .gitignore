@@ -1,0 +1,34 @@
+# Local dependencies and build output
+node_modules/
+dist/
+target/
+src-tauri/target/
+
+# Local snapshots and temporary working material
+BongoStock-snapshots/
+snapshots/
+work/
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Personal/imported skins and source archives
+*.bongoskin
+*.zip
+**/*strayrogue*/
+**/*StrayRogue*/
+**/*steam-bongocat*/
+**/*Steam-BongoCat*/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
