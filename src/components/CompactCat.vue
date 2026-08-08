@@ -449,7 +449,7 @@ onUnmounted(() => {
 .counter-box {
   display: grid;
   left: 3.3%;
-  width: 66%;
+  width: 69%;
   place-items: center;
   color: #171717;
   font-family: 'SFMono-Regular', Menlo, Monaco, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
