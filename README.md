@@ -90,6 +90,8 @@ POST /v1/klines
 
 需要 Node.js、pnpm、Rust stable，以及目标平台的 Tauri 构建依赖。
 
+从空机器安装依赖、运行、打包和连接外接网关的完整步骤见 [`docs/CLIENT_DEPLOYMENT.md`](docs/CLIENT_DEPLOYMENT.md)。
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm exec tsc --noEmit
@@ -137,6 +139,7 @@ pnpm run audit:release
 - 外接行情协议：[`docs/EXTERNAL_MARKET_API_V1.md`](docs/EXTERNAL_MARKET_API_V1.md)
 - 新设备接续提示：[`HANDOFF_PROMPT.md`](HANDOFF_PROMPT.md)
 - 设备迁移/克隆清单：[`docs/DEVICE_TRANSFER_CHECKLIST.md`](docs/DEVICE_TRANSFER_CHECKLIST.md)
+- Windows/macOS 客户端部署：[`docs/CLIENT_DEPLOYMENT.md`](docs/CLIENT_DEPLOYMENT.md)
 - Phase 0～5：历史实施快照，不代表当前功能上限
 
 ## 素材与署名

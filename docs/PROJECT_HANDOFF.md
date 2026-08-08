@@ -154,6 +154,8 @@ pnpm tauri dev
 - 最新模型、图表、字体、缩放和透明窗口改动仍需轻量实机回归；
 - DMG 对外分发前需要签名与公证。
 
+Windows/macOS 从源码运行、打包、权限和外接行情配置见 [`CLIENT_DEPLOYMENT.md`](CLIENT_DEPLOYMENT.md)。
+
 ## 下一步
 
 1. 继续日常使用并修复可复现问题；
