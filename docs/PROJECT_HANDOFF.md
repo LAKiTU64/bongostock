@@ -1,16 +1,16 @@
 # BongoStock 项目接续总览
 
-更新日期：2026-08-09
+更新日期：2026-08-10
 
 ## 当前阶段
 
-BongoStock 当前处于公开源码后的个人 Alpha 稳定化阶段，资讯中心 Phase 0～6 已实现。主要功能已经可用，工作重点是实际使用、macOS 回归和保持文档一致。
+BongoStock 已进入 `v1.0.0` 首个正式版本，资讯中心 Phase 0～6 已实现。主要功能已经可用，后续工作重点是实际使用、macOS 回归和保持文档一致。
 
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
-- 应用版本：`0.1.0`
+- 应用版本：`1.0.0`
 - Bundle Identifier：`com.bongostock.desktop`
-- 正式发布：暂无安装包、签名、公证、GitHub Release 或自动更新
+- 正式发布：Windows x64 安装包通过 GitHub Release 发布；暂无代码签名、公证或自动更新
 
 Phase 0～6 文档是历史实施快照；当前状态以 README、本文件、`NEWS_CENTER_DESIGN.md` 和实际代码为准。
 

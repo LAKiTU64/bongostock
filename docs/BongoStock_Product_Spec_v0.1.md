@@ -1,8 +1,8 @@
 ---
 title: BongoStock 产品方案
 subtitle: 带按需行情与资讯的紧凑桌宠
-version: v0.1-alpha / 个人 Alpha
-date: 2026-08-09
+version: v1.0.0
+date: 2026-08-10
 ---
 
 # BongoStock 产品方案
@@ -11,7 +11,7 @@ date: 2026-08-09
 
 BongoStock 是一个 Windows/macOS 桌面宠物：它累计键盘与鼠标操作次数，并在用户主动点击桌宠后展示紧凑的行情/资讯浮窗。桌宠状态下不展示证券信息，行情详情和资讯均按需加载。
 
-当前为个人 Alpha 项目，源码公开于 <https://github.com/LAKiTU64/bongostock>，版本 `0.1.0`，尚无正式安装包、签名、公证、自动更新或 GitHub Release。
+当前源码公开于 <https://github.com/LAKiTU64/bongostock>，版本 `1.0.0`。Windows x64 安装包通过 GitHub Release 发布；当前尚未提供代码签名、公证或自动更新。
 
 ## 2. 产品原则
 

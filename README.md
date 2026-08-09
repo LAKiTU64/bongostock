@@ -2,11 +2,11 @@
 
 BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键盘按下和鼠标点击次数、响应输入动作，并在用户主动点击桌宠时打开行情/资讯浮窗。
 
-- 当前版本：`0.1.0`
-- 当前阶段：个人 Alpha 稳定化；资讯中心 Phase 0～6 已实现
+- 当前版本：`1.0.0`
+- 当前阶段：首个正式版本；资讯中心 Phase 0～6 已实现
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
-- 软件包状态：尚未发布正式安装包、签名构建或 GitHub Release
+- 软件包状态：Windows x64 安装包通过 GitHub Release 发布；当前构建未进行代码签名
 
 ## 当前功能
 

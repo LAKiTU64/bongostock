@@ -1,6 +1,6 @@
 [package]
 name = "bongo-stock"
-version = "0.1.0"
+version = "1.0.0"
 description = "A discreet stock-watching desktop pet"
 authors = [ "BongoStock contributors" ]
 edition = "2024"
