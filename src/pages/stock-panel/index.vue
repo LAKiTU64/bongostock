@@ -5,6 +5,7 @@ import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewW
 import { useEventListener } from '@vueuse/core'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
+import type { StockPanelCloseReason } from '@/composables/useStockPanel'
 import type { IntradayPoint, StockKline, StockQuote, TrendSeries } from '@/market/marketService'
 import type { MarketSettingsSnapshot } from '@/stores/market'
 import type { StockPanelSettings, WatchlistGroup } from '@/stores/watchlist'
@@ -13,7 +14,7 @@ import { positionStockPanelNearPet } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
-import { hideWindow } from '@/plugins/window'
+import { hideWindow, showWindow } from '@/plugins/window'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
 
@@ -57,6 +58,8 @@ let groupTabsDrag: {
 let suppressGroupTabClick = false
 let unlistenFocus: (() => void) | undefined
 let retainedStateUntil = 0
+let panelLifecycle: 'active' | 'reclaimed' | 'retained' = 'reclaimed'
+let closeInProgress = false
 
 const DRAG_THRESHOLD = 4
 const CHART_WIDTH = 248
@@ -152,9 +155,12 @@ watch(() => [
 useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, async ({ payload }) => {
   if (payload !== WINDOW_LABEL.STOCK_PANEL) return
 
-  const restoreState = watchlistStore.panel.stateRetentionSeconds > 0
+  const restoreState = panelLifecycle === 'retained'
+    && watchlistStore.panel.stateRetentionSeconds > 0
     && Date.now() <= retainedStateUntil
+  panelLifecycle = 'active'
   retainedStateUntil = 0
+  closeInProgress = false
   if (!restoreState) {
     await setPanelMode('market')
     closeDetail()
@@ -164,7 +170,12 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, async ({ payload }) => {
   }
   setPinned(false)
   resetIdleFade()
+  await showWindow()
   void refreshQuotes()
+})
+
+useTauriListen<StockPanelCloseReason>(LISTEN_KEY.CLOSE_STOCK_PANEL, ({ payload }) => {
+  void closePanel(payload === 'retain')
 })
 
 useTauriListen<WatchlistGroup[] | string[]>(LISTEN_KEY.WATCHLIST_CHANGED, ({ payload }) => {
@@ -195,13 +206,13 @@ useEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
 
   event.preventDefault()
-  closePanel(false)
+  void closePanel(false)
 })
 
 onMounted(async () => {
   resetIdleFade()
   unlistenFocus = await appWindow.onFocusChanged(async ({ payload: focused }) => {
-    if (focused || isPinned.value) return
+    if (focused || isPinned.value || closeInProgress || !await appWindow.isVisible()) return
 
     const mainWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
     const [mainFocused, panelFocused] = await Promise.all([
@@ -209,7 +220,7 @@ onMounted(async () => {
       appWindow.isFocused(),
     ])
 
-    if (!mainFocused && !panelFocused && !isPinned.value) closePanel(true)
+    if (!mainFocused && !panelFocused && !isPinned.value) void closePanel(true)
   })
 
   if (await appWindow.isVisible()) void refreshQuotes()
@@ -399,15 +410,28 @@ function handleRefresh() {
   void refreshQuotes()
 }
 
-function closePanel(retainState: boolean) {
-  if (retainState && watchlistStore.panel.stateRetentionSeconds > 0) {
-    retainedStateUntil = Date.now() + watchlistStore.panel.stateRetentionSeconds * 1000
-  } else {
-    retainedStateUntil = 0
-    closeDetail()
-  }
+async function closePanel(retainState: boolean) {
+  if (closeInProgress || !await appWindow.isVisible()) return
+
+  closeInProgress = true
+  const retentionSeconds = watchlistStore.panel.stateRetentionSeconds
+  const shouldRetain = retainState && retentionSeconds > 0
+
+  if (!shouldRetain) closeDetail()
   setPinned(false)
-  void hideWindow(WINDOW_LABEL.STOCK_PANEL)
+
+  try {
+    await hideWindow()
+  } finally {
+    if (shouldRetain) {
+      panelLifecycle = 'retained'
+      retainedStateUntil = Date.now() + retentionSeconds * 1000
+    } else {
+      panelLifecycle = 'reclaimed'
+      retainedStateUntil = 0
+    }
+    closeInProgress = false
+  }
 }
 
 function setPinned(value: boolean) {
@@ -707,7 +731,10 @@ function buildKlineChart(klines: StockKline[]) {
   <main
     class="stock-panel"
     :class="{ 'is-dimmed': isDimmed }"
-    :style="{ '--dimmed-opacity': watchlistStore.panel.dimmedOpacity / 100 }"
+    :style="{
+      '--dimmed-background-opacity': watchlistStore.panel.dimmedOpacity * 0.97 / 100,
+      '--dimmed-opacity': watchlistStore.panel.dimmedOpacity / 100,
+    }"
     @pointerdown="resetIdleFade"
     @pointerenter="resetIdleFade"
     @pointermove.passive="resetIdleFade"
@@ -1153,25 +1180,21 @@ function buildKlineChart(klines: StockKline[]) {
   border: 0;
   border-radius: 12px;
   background: rgb(255 250 243 / 97%);
-  clip-path: inset(0 round 12px);
   color: #443d3e;
   font-family: var(--font-ui);
+  transition: background-color 500ms ease;
+}
+
+.stock-panel.is-dimmed {
+  background: rgb(255 250 243 / var(--dimmed-background-opacity));
+}
+
+.stock-panel > * {
   opacity: 1;
   transition: opacity 500ms ease;
 }
 
-.stock-panel::before {
-  position: absolute;
-  z-index: 10;
-  box-sizing: border-box;
-  border: 1px solid rgb(68 61 62 / 14%);
-  border-radius: 12px;
-  content: '';
-  inset: 0;
-  pointer-events: none;
-}
-
-.stock-panel.is-dimmed {
+.stock-panel.is-dimmed > * {
   opacity: var(--dimmed-opacity);
 }
 

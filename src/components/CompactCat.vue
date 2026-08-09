@@ -211,11 +211,8 @@ async function resizeBuiltinSkin() {
   })
 }
 
-async function syncBuiltinInput() {
-  if (!isBuiltinSkin.value) return
-
-  const runtime = await loadLive2d()
-  if (!isBuiltinSkin.value) return
+function syncBuiltinInput() {
+  if (!isBuiltinSkin.value || !live2d) return
 
   // Match upstream BongoCat: keyboard resources decide which paw moves, while
   // mouse buttons use the model's dedicated mouse parameters. The alternating
@@ -223,10 +220,10 @@ async function syncBuiltinInput() {
   const leftDown = props.pressedKeys.some(key => key in keyOverlayUrls.value.left)
   const rightDown = props.pressedKeys.some(key => key in keyOverlayUrls.value.right)
 
-  runtime.setParameterValue('CatParamLeftHandDown', leftDown)
-  runtime.setParameterValue('CatParamRightHandDown', rightDown)
-  runtime.setParameterValue('ParamMouseLeftDown', props.mouseLeftDown)
-  runtime.setParameterValue('ParamMouseRightDown', props.mouseRightDown)
+  live2d.setParameterValue('CatParamLeftHandDown', leftDown)
+  live2d.setParameterValue('CatParamRightHandDown', rightDown)
+  live2d.setParameterValue('ParamMouseLeftDown', props.mouseLeftDown)
+  live2d.setParameterValue('ParamMouseRightDown', props.mouseRightDown)
 }
 
 function handleResize() {
@@ -390,6 +387,16 @@ onUnmounted(() => {
 .builtin-scene {
   z-index: 0;
   overflow: hidden;
+  border-radius: var(--pet-radius, 0%);
+}
+
+.github-cat-layer {
+  clip-path: inset(0 0 calc(100% - var(--scene-height)) 0 round var(--pet-radius, 0%));
+}
+
+.builtin-key-layer,
+.cat-layer {
+  border-radius: var(--pet-radius, 0%);
 }
 
 .builtin-background,

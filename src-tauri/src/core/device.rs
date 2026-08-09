@@ -3,6 +3,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Runtime, command};
+use tauri_plugin_custom_window::MAIN_WINDOW_LABEL;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum DeviceEventKind {
@@ -20,6 +21,12 @@ pub struct DeviceEvent {
 }
 
 static IS_LISTENING: AtomicBool = AtomicBool::new(false);
+static MOUSE_MOVE_ENABLED: AtomicBool = AtomicBool::new(false);
+
+#[command]
+pub fn set_mouse_move_enabled(enabled: bool) {
+    MOUSE_MOVE_ENABLED.store(enabled, Ordering::Relaxed);
+}
 
 #[command]
 pub async fn start_device_listening<R: Runtime>(app_handle: AppHandle<R>) -> Result<(), String> {
@@ -39,10 +46,16 @@ pub async fn start_device_listening<R: Runtime>(app_handle: AppHandle<R>) -> Res
                 kind: DeviceEventKind::MouseRelease,
                 value: json!(format!("{:?}", button)),
             },
-            EventType::MouseMove { x, y } => DeviceEvent {
-                kind: DeviceEventKind::MouseMove,
-                value: json!({ "x": x, "y": y }),
-            },
+            EventType::MouseMove { x, y } => {
+                if !MOUSE_MOVE_ENABLED.load(Ordering::Relaxed) {
+                    return;
+                }
+
+                DeviceEvent {
+                    kind: DeviceEventKind::MouseMove,
+                    value: json!({ "x": x, "y": y }),
+                }
+            }
             EventType::KeyPress(key) => DeviceEvent {
                 kind: DeviceEventKind::KeyboardPress,
                 value: json!(format!("{:?}", key)),
@@ -54,7 +67,7 @@ pub async fn start_device_listening<R: Runtime>(app_handle: AppHandle<R>) -> Res
             _ => return,
         };
 
-        let _ = app_handle.emit("device-changed", device_event);
+        let _ = app_handle.emit_to(MAIN_WINDOW_LABEL, "device-changed", device_event);
     };
 
     listen(callback).map_err(|err| format!("Failed to listen device: {:?}", err))?;

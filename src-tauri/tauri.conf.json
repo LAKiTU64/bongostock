@@ -27,6 +27,7 @@
       {
         "label": "preference",
         "url": "index.html/#/preference",
+        "create": false,
         "visible": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
@@ -38,6 +39,7 @@
         "label": "stock-panel",
         "title": "BongoStock 行情",
         "url": "index.html/#/stock-panel",
+        "create": false,
         "visible": false,
         "shadow": false,
         "alwaysOnTop": true,

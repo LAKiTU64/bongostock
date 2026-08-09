@@ -10,6 +10,7 @@ export type WindowLabel = typeof WINDOW_LABEL[keyof typeof WINDOW_LABEL]
 
 const COMMAND = {
   SHOW_WINDOW: 'plugin:custom-window|show_window',
+  SHOW_LABELED_WINDOW: 'plugin:custom-window|show_labeled_window',
   HIDE_WINDOW: 'plugin:custom-window|hide_window',
   SET_ALWAYS_ON_TOP: 'plugin:custom-window|set_always_on_top',
   SET_TASKBAR_VISIBILITY: 'plugin:custom-window|set_taskbar_visibility',
@@ -17,7 +18,7 @@ const COMMAND = {
 
 export function showWindow(label?: WindowLabel) {
   if (label) {
-    return emit(LISTEN_KEY.SHOW_WINDOW, label)
+    return invoke(COMMAND.SHOW_LABELED_WINDOW, { label })
   }
 
   return invoke(COMMAND.SHOW_WINDOW)

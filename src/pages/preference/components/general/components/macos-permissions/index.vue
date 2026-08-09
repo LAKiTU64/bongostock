@@ -1,31 +1,36 @@
 <script setup lang="ts">
-import { confirm } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Space } from 'antdv-next'
-import { checkInputMonitoringPermission, requestInputMonitoringPermission } from 'tauri-plugin-macos-permissions-api'
-import { onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { checkAccessibilityPermission, requestAccessibilityPermission } from 'tauri-plugin-macos-permissions-api'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
+import { INVOKE_KEY } from '@/constants'
 
 const authorized = ref(false)
-const { t } = useI18n()
+const appWindow = getCurrentWebviewWindow()
+let unlistenFocus: (() => void) | undefined
+
+async function refreshPermission() {
+  authorized.value = await checkAccessibilityPermission()
+}
+
+async function openAccessibilitySettings() {
+  await requestAccessibilityPermission()
+  await invoke(INVOKE_KEY.OPEN_MACOS_ACCESSIBILITY_SETTINGS)
+}
 
 onMounted(async () => {
-  authorized.value = await checkInputMonitoringPermission()
-
-  if (authorized.value) return
-
-  const confirmed = await confirm(t('pages.preference.general.hints.inputMonitoringPermissionGuide'), {
-    title: t('pages.preference.general.labels.inputMonitoringPermission'),
-    okLabel: t('pages.preference.general.buttons.openNow'),
-    cancelLabel: t('pages.preference.general.buttons.openLater'),
-    kind: 'warning',
+  await refreshPermission()
+  unlistenFocus = await appWindow.onFocusChanged(({ payload: focused }) => {
+    if (focused) void refreshPermission()
   })
+})
 
-  if (!confirmed) return
-
-  requestInputMonitoringPermission()
+onUnmounted(() => {
+  unlistenFocus?.()
 })
 </script>
 
@@ -34,8 +39,8 @@ onMounted(async () => {
     :title="$t('pages.preference.general.labels.permissionsSettings')"
   >
     <ProListItem
-      :description="$t('pages.preference.general.hints.inputMonitoringPermission')"
-      :title="$t('pages.preference.general.labels.inputMonitoringPermission')"
+      :description="$t('pages.preference.general.hints.accessibilityPermission')"
+      :title="$t('pages.preference.general.labels.accessibilityPermission')"
     >
       <Space
         v-if="authorized"
@@ -51,7 +56,7 @@ onMounted(async () => {
         v-else
         class="cursor-pointer text-error font-bold"
         :size="4"
-        @click="requestInputMonitoringPermission"
+        @click="openAccessibilitySettings"
       >
         <div class="i-solar:round-arrow-right-bold text-4.5" />
 

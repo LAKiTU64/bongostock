@@ -68,6 +68,7 @@
           "updateSettings": "更新设置",
           "autoCheckUpdate": "自动检查更新",
           "permissionsSettings": "权限设置",
+          "accessibilityPermission": "辅助功能权限",
           "inputMonitoringPermission": "输入监控权限",
           "administratorPermission": "管理员身份",
           "suppressAdminPrompt": "不再提示管理员权限"
@@ -80,6 +81,7 @@
         "hints": {
           "showTaskbarIcon": "启用后，即可通过 OBS Studio 捕获窗口。",
           "showTrayIcon": "启用后，在系统托盘中显示应用图标。",
+          "accessibilityPermission": "开启辅助功能权限后，BongoStock 才能响应全局键盘与鼠标操作；点击右侧可直接前往 macOS 系统设置。",
           "inputMonitoringPermission": "开启输入监控权限，以便接收系统的键盘和鼠标事件来响应你的操作。",
           "inputMonitoringPermissionGuide": "开启输入监控权限后，应用才能接收系统的键盘和鼠标事件，从而响应你的操作。\n\n操作方式：\n1. 打开「系统设置」→「隐私与安全性」→「输入监控」。\n2. 若列表中已存在 BongoStock，请先选中它，点击「-」按钮将其删除。\n3. 点击「+」按钮，找到并添加 BongoStock 应用。\n4. 重启应用，以确保权限正式生效。",
           "administratorPermission": "以管理员身份运行应用，可以更稳定地捕获部分系统级按键与输入事件。",

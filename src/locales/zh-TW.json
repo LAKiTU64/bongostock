@@ -68,6 +68,7 @@
           "updateSettings": "更新設定",
           "autoCheckUpdate": "自動檢查更新",
           "permissionsSettings": "權限設定",
+          "accessibilityPermission": "輔助使用權限",
           "inputMonitoringPermission": "輸入監控權限",
           "administratorPermission": "系統管理員身分",
           "suppressAdminPrompt": "不再提示系統管理員權限"
@@ -80,6 +81,7 @@
         "hints": {
           "showTaskbarIcon": "啟用後，即可透過 OBS Studio 擷取視窗。",
           "showTrayIcon": "啟用後，在系統托盤中顯示應用程式圖示。",
+          "accessibilityPermission": "開啟輔助使用權限後，BongoStock 才能回應全域鍵盤與滑鼠操作；點擊右側可直接前往 macOS 系統設定。",
           "inputMonitoringPermission": "開啟輸入監控權限，以便接收系統的鍵盤和滑鼠游標事件來回應您的操作。",
           "inputMonitoringPermissionGuide": "開啟輸入監控權限後，應用程式才能接收系統的鍵盤和滑鼠事件，進而回應你的操作。\n\n操作方式：\n1. 開啟「系統設定」→「隱私權與安全性」→「輸入監控」。\n2. 若清單中已存在 BongoStock，請先選取它，點擊「-」按鈕將其刪除。\n3. 點擊「+」按鈕，找到並新增 BongoStock 應用程式。\n4. 重新啟動應用程式，以確保權限正式生效。",
           "administratorPermission": "以系統管理員身分執行應用程式，可以更穩定地擷取部分系統層級按鍵與輸入事件。",

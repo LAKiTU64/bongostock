@@ -68,6 +68,7 @@
           "updateSettings": "Cài đặt cập nhật",
           "autoCheckUpdate": "Tự động kiểm tra cập nhật",
           "permissionsSettings": "Cài đặt quyền",
+          "accessibilityPermission": "Quyền Trợ năng",
           "inputMonitoringPermission": "Quyền giám sát đầu vào",
           "administratorPermission": "Quyền quản trị viên",
           "suppressAdminPrompt": "Không nhắc lại"
@@ -80,6 +81,7 @@
         "hints": {
           "showTaskbarIcon": "Bật để có thể quay cửa sổ qua OBS.",
           "showTrayIcon": "Bật để hiện biểu tượng ứng dụng trên khay hệ thống.",
+          "accessibilityPermission": "Quyền Trợ năng cho phép BongoStock phản hồi bàn phím và chuột toàn hệ thống. Nhấn thao tác bên phải để mở trực tiếp cài đặt macOS.",
           "inputMonitoringPermission": "Bật quyền giám sát để nhận sự kiện bàn phím và chuột từ hệ thống nhằm phản hồi thao tác của bạn.",
           "inputMonitoringPermissionGuide": "Quyền Giám sát đầu vào là cần thiết để ứng dụng có thể nhận các sự kiện bàn phím và chuột từ hệ thống.\n\nCác bước thực hiện:\n1. Mở Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Giám sát đầu vào.\n2. Nếu BongoStock đã có trong danh sách, hãy chọn nó và nhấn nút \"-\" để xóa.\n3. Nhấn nút \"+\" để tìm và thêm BongoStock.\n4. Khởi động lại ứng dụng để quyền chính thức có hiệu lực.",
           "administratorPermission": "Chạy ứng dụng với quyền quản trị viên giúp bắt một số phím và sự kiện nhập liệu cấp hệ thống ổn định hơn.",

@@ -60,6 +60,39 @@ interface GatewayResponse {
   body: string
 }
 
+function normalizeNewsTitle(value: string) {
+  return value.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '')
+}
+
+function deduplicateNewsResult(result: NewsSearchResult): NewsSearchResult {
+  const seen = new Set<string>()
+  let removed = 0
+  const unique = (items: NewsItem[]) => items.filter((item) => {
+    const normalizedTitle = normalizeNewsTitle(item.title)
+    const key = normalizedTitle ? `title:${normalizedTitle}` : `id:${item.id}`
+    if (seen.has(key)) {
+      removed += 1
+      return false
+    }
+    seen.add(key)
+    return true
+  })
+  const items = unique(result.items)
+  const outOfRangeItems = unique(result.outOfRangeItems ?? [])
+
+  if (!removed) return result
+  return {
+    ...result,
+    items,
+    outOfRangeItems,
+    stats: {
+      ...result.stats,
+      duplicateCount: result.stats.duplicateCount + removed,
+      returnedCount: items.length,
+    },
+  }
+}
+
 export async function fetchNews(request: NewsSearchRequest): Promise<NewsSearchResult> {
   const settings = useMarketStore()
   const response = await invoke<GatewayResponse>(INVOKE_KEY.MARKET_REQUEST, {
@@ -90,5 +123,5 @@ export async function fetchNews(request: NewsSearchRequest): Promise<NewsSearchR
   if (!payload || typeof payload !== 'object' || !Array.isArray((payload as NewsSearchResult).items)) {
     throw new Error('资讯服务返回格式无效')
   }
-  return payload as NewsSearchResult
+  return deduplicateNewsResult(payload as NewsSearchResult)
 }

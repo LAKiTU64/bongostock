@@ -11,6 +11,10 @@ import 'virtual:uno.css'
 import './assets/css/global.scss'
 
 const pinia = createPinia()
-pinia.use(createPlugin({ saveOnChange: true }))
+pinia.use(createPlugin({
+  saveInterval: 1000,
+  saveOnChange: true,
+  saveStrategy: 'debounce',
+}))
 
 createApp(App).use(router).use(pinia).use(i18n).mount('#app')

@@ -7,7 +7,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import CompactCat from '@/components/CompactCat.vue'
 import { useAppMenu } from '@/composables/useAppMenu'
 import { useDevice } from '@/composables/useDevice'
-import { toggleStockPanel } from '@/composables/useStockPanel'
+import { closeStockPanel, toggleStockPanel } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { hideWindow, setAlwaysOnTop, setTaskbarVisibility, showWindow } from '@/plugins/window'
@@ -39,6 +39,7 @@ const compactContentWidth = computed(() => builtinSkin.value ? BUILTIN_CONTENT_W
 const compactContentHeight = computed(() => builtinSkin.value ? BUILTIN_VISIBLE_HEIGHT : COMPACT_VISIBLE_HEIGHT)
 const compactPetStyle = computed(() => ({
   '--pet-scale': compactScale.value,
+  '--pet-radius': `${catStore.window.radius}%`,
   'left': `${COMPACT_LEFT_GUTTER * compactScale.value / displayScaleFactor.value}px`,
   'top': '0px',
   'width': `${compactContentWidth.value * compactScale.value / displayScaleFactor.value}px`,
@@ -119,7 +120,7 @@ watch(() => catStore.window.visible, async (value) => {
   }
 
   hideWindow()
-  hideWindow(WINDOW_LABEL.STOCK_PANEL)
+  void closeStockPanel('discard')
 })
 
 watch(() => catStore.window.passThrough, (value) => {
@@ -189,7 +190,7 @@ async function closeStockPanelIfUnfocused() {
   ])
 
   if (!mainFocused && !panelFocused && !panelPinned.value) {
-    await hideWindow(WINDOW_LABEL.STOCK_PANEL)
+    await closeStockPanel('retain')
   }
 }
 
@@ -232,7 +233,6 @@ async function handleContextmenu(event: MouseEvent) {
     class="relative size-screen overflow-hidden children:(absolute size-full)"
     :style="{
       opacity: catStore.window.opacity / 100,
-      borderRadius: `${catStore.window.radius}%`,
     }"
     @click.stop="handlePetClick"
     @contextmenu="handleContextmenu"

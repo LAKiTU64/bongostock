@@ -4275,10 +4275,10 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`",
           "type": "string",
           "const": "custom-window:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`"
         },
         {
           "description": "Enables the hide_window command without any pre-configured scope.",
@@ -4297,6 +4297,12 @@
           "type": "string",
           "const": "custom-window:allow-set-taskbar-visibility",
           "markdownDescription": "Enables the set_taskbar_visibility command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_labeled_window command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:allow-show-labeled-window",
+          "markdownDescription": "Enables the show_labeled_window command without any pre-configured scope."
         },
         {
           "description": "Enables the show_window command without any pre-configured scope.",
@@ -4321,6 +4327,12 @@
           "type": "string",
           "const": "custom-window:deny-set-taskbar-visibility",
           "markdownDescription": "Denies the set_taskbar_visibility command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_labeled_window command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:deny-show-labeled-window",
+          "markdownDescription": "Denies the show_labeled_window command without any pre-configured scope."
         },
         {
           "description": "Denies the show_window command without any pre-configured scope.",

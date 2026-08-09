@@ -5,6 +5,7 @@ Default permissions for the plugin
 #### This default permission set includes the following:
 
 - `allow-show-window`
+- `allow-show-labeled-window`
 - `allow-hide-window`
 - `allow-set-always-on-top`
 - `allow-set-taskbar-visibility`
@@ -92,6 +93,32 @@ Enables the set_taskbar_visibility command without any pre-configured scope.
 <td>
 
 Denies the set_taskbar_visibility command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:allow-show-labeled-window`
+
+</td>
+<td>
+
+Enables the show_labeled_window command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-show-labeled-window`
+
+</td>
+<td>
+
+Denies the show_labeled_window command without any pre-configured scope.
 
 </td>
 </tr>

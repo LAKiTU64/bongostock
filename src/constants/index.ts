@@ -4,6 +4,7 @@ export const BONGOSTOCK_REPOSITORY_LINK = 'https://github.com/LAKiTU64/bongostoc
 export const LISTEN_KEY = {
   SHOW_WINDOW: 'show-window',
   HIDE_WINDOW: 'hide-window',
+  CLOSE_STOCK_PANEL: 'close-stock-panel',
   DEVICE_CHANGED: 'device-changed',
   GAMEPAD_CHANGED: 'gamepad-changed',
   WATCHLIST_CHANGED: 'watchlist-changed',
@@ -18,6 +19,8 @@ export const LISTEN_KEY = {
 export const INVOKE_KEY = {
   COPY_DIR: 'copy_dir',
   START_DEVICE_LISTENING: 'start_device_listening',
+  SET_MOUSE_MOVE_ENABLED: 'set_mouse_move_enabled',
+  OPEN_MACOS_ACCESSIBILITY_SETTINGS: 'open_macos_accessibility_settings',
   START_GAMEPAD_LISTING: 'start_gamepad_listing',
   STOP_GAMEPAD_LISTING: 'stop_gamepad_listing',
   MARKET_REQUEST: 'market_request',

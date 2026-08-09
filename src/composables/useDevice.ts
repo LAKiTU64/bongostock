@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { isNil } from 'es-toolkit'
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { useAppStore } from '@/stores/app'
 import { useCatStore } from '@/stores/cat'
@@ -57,6 +57,19 @@ export function useDevice() {
   const mouseLeftDown = ref(false)
   const mouseRightDown = ref(false)
   const pressedKeys = ref<string[]>([])
+  const keyPressedAt = new Map<string, number>()
+  const keyReleaseTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const MIN_INPUT_FEEDBACK_MS = 48
+
+  watch(() => catStore.window.hideOnHover, (enabled) => {
+    void invoke(INVOKE_KEY.SET_MOUSE_MOVE_ENABLED, { enabled })
+  }, { immediate: true })
+
+  onUnmounted(() => {
+    keyReleaseTimers.forEach(timer => clearTimeout(timer))
+    keyReleaseTimers.clear()
+    keyPressedAt.clear()
+  })
 
   onMounted(async () => {
     scaleFactor.value = isMac ? await appWindow.scaleFactor() : 1
@@ -115,12 +128,24 @@ export function useDevice() {
 
     if (payload.kind === 'KeyboardPress') {
       const key = normalizeKey(payload.value)
-      if (!pressedKeys.value.includes(key)) pressedKeys.value.push(key)
+      const releaseTimer = keyReleaseTimers.get(key)
+      if (releaseTimer) clearTimeout(releaseTimer)
+      keyReleaseTimers.delete(key)
+      keyPressedAt.set(key, performance.now())
+      if (!pressedKeys.value.includes(key)) pressedKeys.value = [...pressedKeys.value, key]
     }
 
     if (payload.kind === 'KeyboardRelease') {
       const key = normalizeKey(payload.value)
-      pressedKeys.value = pressedKeys.value.filter(value => value !== key)
+      const elapsed = performance.now() - (keyPressedAt.get(key) ?? 0)
+      const release = () => {
+        pressedKeys.value = pressedKeys.value.filter(value => value !== key)
+        keyPressedAt.delete(key)
+        keyReleaseTimers.delete(key)
+      }
+
+      if (elapsed >= MIN_INPUT_FEEDBACK_MS) release()
+      else keyReleaseTimers.set(key, setTimeout(release, MIN_INPUT_FEEDBACK_MS - elapsed))
     }
 
     if (payload.kind === 'KeyboardPress' || payload.kind === 'MousePress') {

@@ -1,9 +1,10 @@
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
+import { emit } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { availableMonitors } from '@tauri-apps/api/window'
 
-import { WINDOW_LABEL } from '@/constants'
-import { hideWindow, showWindow } from '@/plugins/window'
+import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
+import { showWindow } from '@/plugins/window'
 
 const PANEL_GAP = 12
 
@@ -60,12 +61,21 @@ export async function positionStockPanelNearPet(): Promise<void> {
 export async function toggleStockPanel(): Promise<void> {
   const panel = await WebviewWindow.getByLabel(WINDOW_LABEL.STOCK_PANEL)
 
-  if (!panel) return
+  if (!panel) {
+    await showWindow(WINDOW_LABEL.STOCK_PANEL)
+    return
+  }
 
   if (await panel.isVisible()) {
-    await hideWindow(WINDOW_LABEL.STOCK_PANEL)
+    await closeStockPanel('retain')
     return
   }
 
   await showWindow(WINDOW_LABEL.STOCK_PANEL)
+}
+
+export type StockPanelCloseReason = 'discard' | 'retain'
+
+export function closeStockPanel(reason: StockPanelCloseReason): Promise<void> {
+  return emit(LISTEN_KEY.CLOSE_STOCK_PANEL, reason)
 }

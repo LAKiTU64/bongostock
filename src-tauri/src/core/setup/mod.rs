@@ -12,10 +12,6 @@ pub use macos::*;
 #[cfg(not(target_os = "macos"))]
 pub use common::*;
 
-pub fn default(
-    app_handle: &AppHandle,
-    main_window: WebviewWindow,
-    preference_window: WebviewWindow,
-) {
-    platform(app_handle, main_window.clone(), preference_window.clone());
+pub fn default(app_handle: &AppHandle, main_window: WebviewWindow) {
+    platform(app_handle, main_window.clone());
 }
