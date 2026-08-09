@@ -35,7 +35,7 @@ const lastQuery = ref('')
 const showCustomQuery = ref(false)
 const showSecurityContext = ref(newsStore.scope === 'security')
 const securityCode = ref('')
-const expandedId = ref('')
+const selectedItem = ref<NewsItem>()
 const dirty = ref(true)
 let requestId = 0
 let listDrag: { pointerId: number, startY: number, scrollTop: number, moved: boolean } | undefined
@@ -101,7 +101,7 @@ watch(securityOptions, (options) => {
 }, { immediate: true })
 watch(() => [newsStore.scope, activePreset.value, newsStore.depth, securityCode.value], () => {
   dirty.value = true
-  expandedId.value = ''
+  selectedItem.value = undefined
 })
 watch(() => props.refreshToken, () => void search())
 
@@ -109,7 +109,7 @@ function setScope(scope: NewsScope) {
   newsStore.scope = scope
   showCustomQuery.value = false
   showSecurityContext.value = scope === 'security'
-  expandedId.value = ''
+  selectedItem.value = undefined
   emit('activity')
 }
 
@@ -119,6 +119,7 @@ function handleGroupChange(event: Event) {
 }
 
 async function search() {
+  selectedItem.value = undefined
   showCustomQuery.value = false
   showSecurityContext.value = false
   if (newsStore.scope === 'security' && !selectedSecurity.value) {
@@ -178,9 +179,14 @@ function applyCustomQuery() {
   emit('activity')
 }
 
-function toggleItem(item: NewsItem) {
+function openItem(item: NewsItem) {
   newsStore.markRead(item.id)
-  expandedId.value = expandedId.value === item.id ? '' : item.id
+  selectedItem.value = item
+  emit('activity')
+}
+
+function closeItem() {
+  selectedItem.value = undefined
   emit('activity')
 }
 
@@ -224,217 +230,249 @@ function handleListPointerEnd(event: PointerEvent) {
 
 <template>
   <section class="news-panel">
-    <div class="filter-row">
-      <nav
-        aria-label="资讯范围"
-        class="scope-tabs"
-      >
-        <button
-          v-for="item in ([['market', '全市场'], ['briefing', '简报'], ['security', '个股']] as const)"
-          :key="item[0]"
-          :class="{ active: newsStore.scope === item[0] }"
-          type="button"
-          @click.stop="setScope(item[0])"
-        >
-          {{ item[1] }}
-        </button>
-      </nav>
-      <select
-        v-model="activePreset"
-        class="preset-select"
-        title="检索主题"
-        @click.stop
-      >
-        <option
-          v-for="item in presetOptions"
-          :key="item[0]"
-          :value="item[0]"
-        >
-          {{ item[1] }}
-        </option>
-      </select>
-      <select
-        v-model="newsStore.depth"
-        class="depth-select"
-        title="召回深度"
-        @click.stop
-      >
-        <option value="standard">
-          10条
-        </option><option value="extended">
-          20条
-        </option>
-      </select>
-      <button
-        :aria-label="loading ? '正在搜索' : '搜索'"
-        class="search-button"
-        :class="{ 'has-query': query }"
-        :disabled="loading"
-        :title="query ? `搜索（自定义：${query}；右键修改）` : '搜索；右键输入完整搜索词'"
-        type="button"
-        @click.stop="search"
-        @contextmenu.prevent.stop="openCustomQuery"
-        @pointerdown.stop
-      >
-        <span v-if="loading">…</span>
-        <svg
-          v-else
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            cx="10.5"
-            cy="10.5"
-            r="5.5"
-          />
-          <path d="m15 15 4.5 4.5" />
-        </svg>
-      </button>
-    </div>
-
-    <form
-      v-if="showCustomQuery"
-      class="context-popover custom-query-popover"
-      @submit.prevent="applyCustomQuery"
-    >
-      <input
-        v-model="query"
-        autofocus
-        placeholder="输入完整搜索词"
-        @input="dirty = true"
-        @pointerdown.stop
-      >
-      <button
-        v-if="query"
-        title="清除完整搜索词"
-        type="button"
-        @click.stop="clearCustomQuery"
-      >
-        ×
-      </button>
-      <button
-        class="apply-button"
-        type="submit"
-      >
-        使用
-      </button>
-    </form>
-
-    <div
-      v-else-if="newsStore.scope === 'security' && showSecurityContext"
-      class="context-popover security-context"
-    >
-      <select
-        class="group-select"
-        title="股票分组"
-        :value="activeGroup?.id"
-        @change="handleGroupChange"
-        @click.stop
-      >
-        <option
-          v-for="group in watchlistStore.groups"
-          :key="group.id"
-          :value="group.id"
-        >
-          {{ group.name }}
-        </option>
-      </select>
-      <select
-        v-model="securityCode"
-        class="security-select"
-        title="自选股票"
-        @click.stop
-      >
-        <option
-          v-for="item in securityOptions"
-          :key="item.code"
-          :value="item.code"
-        >
-          {{ item.name }}
-        </option>
-      </select>
-    </div>
-
-    <div
-      v-if="result"
-      class="news-stats"
-    >
-      <span v-if="dirty">条件已变化，请点击搜索</span>
-      <span
-        v-else
-        class="result-summary"
-        :title="lastQuery ? `搜索词：${lastQuery}` : undefined"
-      >显示 {{ visibleItems.length }} 条 · {{ result?.meta.cached ? '缓存' : '实时' }}<template v-if="lastQuery"> · 搜索词：{{ lastQuery }}</template></span>
-      <span v-if="outOfRangeIds.size">{{ outOfRangeIds.size }} 条超出时间范围</span>
-    </div>
-
-    <div
-      v-if="errorMessage"
-      class="news-status error"
-    >
-      {{ errorMessage }}<button
-        type="button"
-        @click.stop="search"
-      >
-        重试
-      </button>
-    </div>
-    <div
-      v-else-if="loading && !result"
-      class="news-status"
-    >
-      正在从服务端检索资讯…
-    </div>
-    <div
-      v-else-if="!result"
-      class="news-status"
-    >
-      选择条件后点击搜索
-    </div>
-    <div
-      v-else-if="!visibleItems.length"
-      class="news-status"
-    >
-      当前条件没有结果
-    </div>
-    <div
-      v-else
-      class="news-list"
+    <article
+      v-if="selectedItem"
+      class="news-detail"
       @pointercancel="handleListPointerEnd"
       @pointerdown="handleListPointerDown"
       @pointermove="handleListPointerMove"
       @pointerup="handleListPointerEnd"
       @wheel.passive="emit('activity')"
     >
-      <article
-        v-for="item in visibleItems"
-        :key="item.id"
-        class="news-item"
-        :class="{ read: newsStore.readIds.includes(item.id), expanded: expandedId === item.id, expired: outOfRangeIds.has(item.id) }"
+      <header class="detail-toolbar">
+        <button
+          class="back-button"
+          type="button"
+          @click.stop="closeItem"
+          @pointerdown.stop
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+          >
+            <path d="m14.5 5-7 7 7 7" />
+          </svg>
+          返回
+        </button>
+        <span>{{ formatTime(selectedItem.publishedAt) }} · {{ selectedItem.source }}</span>
+      </header>
+      <h2>{{ selectedItem.title }}</h2>
+      <p class="detail-content">
+        {{ selectedItem.summary || '暂无正文' }}
+      </p>
+      <footer
+        v-if="selectedItem.url"
+        class="detail-actions"
       >
         <button
-          class="news-title"
           type="button"
-          @click.stop="toggleItem(item)"
+          @click.stop="openUrl(selectedItem.url)"
+          @pointerdown.stop
         >
-          <strong>{{ item.title }}</strong><span>{{ formatTime(item.publishedAt) }} · {{ item.source }}<em v-if="outOfRangeIds.has(item.id)"> · 超出范围</em></span>
+          打开原文
         </button>
-        <template v-if="expandedId === item.id">
-          <p>{{ item.summary || '暂无摘要' }}</p>
-          <div
-            v-if="item.url"
-            class="item-actions"
+      </footer>
+    </article>
+
+    <template v-else>
+      <div class="filter-row">
+        <nav
+          aria-label="资讯范围"
+          class="scope-tabs"
+        >
+          <button
+            v-for="item in ([['market', '全市场'], ['briefing', '简报'], ['security', '个股']] as const)"
+            :key="item[0]"
+            :class="{ active: newsStore.scope === item[0] }"
+            type="button"
+            @click.stop="setScope(item[0])"
           >
-            <button
-              type="button"
-              @click.stop="openUrl(item.url)"
-            >
-              打开原文
-            </button>
-          </div>
-        </template>
-      </article>
-    </div>
+            {{ item[1] }}
+          </button>
+        </nav>
+        <select
+          v-model="activePreset"
+          class="preset-select"
+          title="检索主题"
+          @click.stop
+        >
+          <option
+            v-for="item in presetOptions"
+            :key="item[0]"
+            :value="item[0]"
+          >
+            {{ item[1] }}
+          </option>
+        </select>
+        <select
+          v-model="newsStore.depth"
+          class="depth-select"
+          title="召回深度"
+          @click.stop
+        >
+          <option value="standard">
+            10条
+          </option><option value="extended">
+            20条
+          </option>
+        </select>
+        <button
+          :aria-label="loading ? '正在搜索' : '搜索'"
+          class="search-button"
+          :class="{ 'has-query': query }"
+          :disabled="loading"
+          :title="query ? `搜索（自定义：${query}；右键修改）` : '搜索；右键输入完整搜索词'"
+          type="button"
+          @click.stop="search"
+          @contextmenu.prevent.stop="openCustomQuery"
+          @pointerdown.stop
+        >
+          <span v-if="loading">…</span>
+          <svg
+            v-else
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              cx="10.5"
+              cy="10.5"
+              r="5.5"
+            />
+            <path d="m15 15 4.5 4.5" />
+          </svg>
+        </button>
+      </div>
+
+      <form
+        v-if="showCustomQuery"
+        class="context-popover custom-query-popover"
+        @submit.prevent="applyCustomQuery"
+      >
+        <input
+          v-model="query"
+          autofocus
+          placeholder="输入完整搜索词"
+          @input="dirty = true"
+          @pointerdown.stop
+        >
+        <button
+          v-if="query"
+          title="清除完整搜索词"
+          type="button"
+          @click.stop="clearCustomQuery"
+        >
+          ×
+        </button>
+        <button
+          class="apply-button"
+          type="submit"
+        >
+          使用
+        </button>
+      </form>
+
+      <div
+        v-else-if="newsStore.scope === 'security' && showSecurityContext"
+        class="context-popover security-context"
+      >
+        <select
+          class="group-select"
+          title="股票分组"
+          :value="activeGroup?.id"
+          @change="handleGroupChange"
+          @click.stop
+        >
+          <option
+            v-for="group in watchlistStore.groups"
+            :key="group.id"
+            :value="group.id"
+          >
+            {{ group.name }}
+          </option>
+        </select>
+        <select
+          v-model="securityCode"
+          class="security-select"
+          title="自选股票"
+          @click.stop
+        >
+          <option
+            v-for="item in securityOptions"
+            :key="item.code"
+            :value="item.code"
+          >
+            {{ item.name }}
+          </option>
+        </select>
+      </div>
+
+      <div
+        v-if="result"
+        class="news-stats"
+      >
+        <span v-if="dirty">条件已变化，请点击搜索</span>
+        <span
+          v-else
+          class="result-summary"
+          :title="lastQuery ? `搜索词：${lastQuery}` : undefined"
+        >显示 {{ visibleItems.length }} 条 · {{ result?.meta.cached ? '缓存' : '实时' }}<template v-if="lastQuery"> · 搜索词：{{ lastQuery }}</template></span>
+        <span v-if="outOfRangeIds.size">{{ outOfRangeIds.size }} 条超出时间范围</span>
+      </div>
+
+      <div
+        v-if="errorMessage"
+        class="news-status error"
+      >
+        {{ errorMessage }}<button
+          type="button"
+          @click.stop="search"
+        >
+          重试
+        </button>
+      </div>
+      <div
+        v-else-if="loading && !result"
+        class="news-status"
+      >
+        正在从服务端检索资讯…
+      </div>
+      <div
+        v-else-if="!result"
+        class="news-status"
+      >
+        选择条件后点击搜索
+      </div>
+      <div
+        v-else-if="!visibleItems.length"
+        class="news-status"
+      >
+        当前条件没有结果
+      </div>
+      <div
+        v-else
+        class="news-list"
+        @pointercancel="handleListPointerEnd"
+        @pointerdown="handleListPointerDown"
+        @pointermove="handleListPointerMove"
+        @pointerup="handleListPointerEnd"
+        @wheel.passive="emit('activity')"
+      >
+        <article
+          v-for="item in visibleItems"
+          :key="item.id"
+          class="news-item"
+          :class="{ read: newsStore.readIds.includes(item.id), expired: outOfRangeIds.has(item.id) }"
+        >
+          <button
+            class="news-title"
+            type="button"
+            @click.stop="openItem(item)"
+          >
+            <strong>{{ item.title }}</strong><span>{{ formatTime(item.publishedAt) }} · {{ item.source }}<em v-if="outOfRangeIds.has(item.id)"> · 超出范围</em></span>
+          </button>
+        </article>
+      </div>
+    </template>
   </section>
 </template>
 
@@ -481,7 +519,7 @@ function handleListPointerEnd(event: PointerEvent) {
 .filter-row button,
 .custom-query-popover button,
 .news-status button,
-.item-actions button {
+.detail-actions button {
   padding: 3px 5px;
   border: 0;
   border-radius: 7px;
@@ -648,7 +686,7 @@ function handleListPointerEnd(event: PointerEvent) {
 .news-item:first-child {
   border-radius: 6px 6px 0 0;
 }
-.news-item.read:not(.expanded) {
+.news-item.read {
   opacity: 0.62;
 }
 .news-title {
@@ -672,9 +710,6 @@ function handleListPointerEnd(event: PointerEvent) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.expanded .news-title strong {
-  white-space: normal;
-}
 .news-title span {
   color: #938788;
   font-size: 7.5px;
@@ -685,22 +720,89 @@ function handleListPointerEnd(event: PointerEvent) {
   font-style: normal;
   font-weight: 600;
 }
-.news-item p {
-  max-height: 40px;
-  margin: 3px 0;
-  overflow: hidden;
-  color: #655b5c;
-  font-size: 8px;
-  line-height: 1.3;
-}
-.item-actions {
+.news-detail {
   display: flex;
-  justify-content: flex-end;
-  gap: 3px;
+  min-height: 0;
+  flex: 1;
+  box-sizing: border-box;
+  flex-direction: column;
+  padding: 3px 4px 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: rgb(255 255 255 / 24%);
+  scrollbar-width: none;
+  touch-action: pan-y;
 }
-.item-actions button {
-  padding: 2px 4px;
-  font-size: 8px;
+.news-detail::-webkit-scrollbar {
+  display: none;
+}
+.detail-toolbar {
+  display: flex;
+  min-height: 23px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid rgb(68 61 62 / 9%);
+  color: #938788;
+  font-size: 7.5px;
+}
+.detail-toolbar span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-toolbar .back-button {
+  display: flex;
+  height: 19px;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 5px 2px 3px;
+  border: 0;
+  border-radius: 7px;
+  background: #443d3e;
+  color: #fffaf3;
+  cursor: pointer;
+  font: inherit;
+  font-size: 8.5px;
+  font-weight: 650;
+}
+.back-button svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.news-detail h2 {
+  margin: 6px 1px 3px;
+  color: #443d3e;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.detail-content {
+  margin: 2px 1px 6px;
+  color: #655b5c;
+  font-size: 9px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.detail-actions {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  padding-top: 3px;
+}
+.detail-actions button {
+  background: #443d3e;
+  color: #fffaf3;
+  font-size: 8.5px;
 }
 .news-status {
   display: flex;
