@@ -6,20 +6,45 @@ use tauri::{AppHandle, Runtime, WebviewWindow, command};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SetForegroundWindow, SetWindowPos, ShowWindow,
+    SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetWindowPos, ShowWindow,
 };
 
 static TOPMOST_RUNNING: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 #[command]
-pub async fn show_window<R: Runtime>(_app_handle: AppHandle<R>, window: WebviewWindow<R>) {
+pub async fn show_window<R: Runtime>(
+    _app_handle: AppHandle<R>,
+    window: WebviewWindow<R>,
+    x: Option<i32>,
+    y: Option<i32>,
+) {
+    let native_hwnd = window.hwnd().ok();
+
+    if let (Some(x), Some(y), Some(native_hwnd)) = (x, y, native_hwnd) {
+        let hwnd = HWND(native_hwnd.0);
+
+        // Reposition while the window is still hidden. The regular Tauri show
+        // path below then keeps its visibility state in sync with isVisible().
+        unsafe {
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+        }
+    }
+
     let _ = window.show();
     let _ = window.unminimize();
 
     // WebView focus alone does not reliably activate a hidden preference
     // window on Windows, especially when the request comes from a tray/menu
     // callback. Bring the native HWND to the foreground as well.
-    if let Ok(native_hwnd) = window.hwnd() {
+    if let Some(native_hwnd) = native_hwnd {
         let hwnd = HWND(native_hwnd.0);
 
         unsafe {

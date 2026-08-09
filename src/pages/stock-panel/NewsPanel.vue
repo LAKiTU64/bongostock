@@ -99,7 +99,13 @@ watch(() => props.initialSecurityCode, (value) => {
 watch(securityOptions, (options) => {
   if (!options.some(item => item.code === securityCode.value)) securityCode.value = options[0]?.code ?? ''
 }, { immediate: true })
-watch(() => [newsStore.scope, activePreset.value, newsStore.depth, securityCode.value], () => {
+watch(() => [
+  newsStore.scope,
+  activePreset.value,
+  newsStore.timeRange,
+  newsStore.depth,
+  securityCode.value,
+], () => {
   dirty.value = true
   selectedItem.value = undefined
 })
@@ -139,7 +145,7 @@ async function search() {
       preset: activePreset.value,
       query: customQuery || undefined,
       security: newsStore.scope === 'security' ? selectedSecurity.value : undefined,
-      timeRange: 'all',
+      timeRange: newsStore.timeRange,
       sort: 'newest',
       depth: newsStore.depth,
       types: ['news', 'announcement', 'report', 'external'],
@@ -239,7 +245,7 @@ function handleListPointerEnd(event: PointerEvent) {
       @pointerup="handleListPointerEnd"
       @wheel.passive="emit('activity')"
     >
-      <header class="detail-toolbar">
+      <header class="filter-row detail-toolbar">
         <button
           class="back-button"
           type="button"
@@ -302,6 +308,25 @@ function handleListPointerEnd(event: PointerEvent) {
             :value="item[0]"
           >
             {{ item[1] }}
+          </option>
+        </select>
+        <select
+          v-model="newsStore.timeRange"
+          class="time-range-select"
+          title="时间范围"
+          @click.stop
+        >
+          <option value="1d">
+            1天
+          </option>
+          <option value="3d">
+            3天
+          </option>
+          <option value="7d">
+            7天
+          </option>
+          <option value="all">
+            不限
           </option>
         </select>
         <select
@@ -516,6 +541,7 @@ function handleListPointerEnd(event: PointerEvent) {
   flex: 1;
 }
 .scope-tabs button,
+.detail-toolbar .back-button,
 .filter-row button,
 .custom-query-popover button,
 .news-status button,
@@ -543,6 +569,20 @@ function handleListPointerEnd(event: PointerEvent) {
   font-size: 10px;
   line-height: 1.1;
 }
+.detail-toolbar .back-button {
+  display: flex;
+  box-sizing: border-box;
+  height: 19px;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 7px;
+  background: #443d3e;
+  color: #fffaf3;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.1;
+}
 .filter-row select,
 .security-context select {
   box-sizing: border-box;
@@ -561,6 +601,10 @@ function handleListPointerEnd(event: PointerEvent) {
   width: 0;
   min-width: 44px;
   flex: 1;
+}
+.filter-row .time-range-select {
+  width: 44px;
+  flex: none;
 }
 .filter-row .depth-select {
   width: 48px;
@@ -726,7 +770,7 @@ function handleListPointerEnd(event: PointerEvent) {
   flex: 1;
   box-sizing: border-box;
   flex-direction: column;
-  padding: 3px 4px 5px;
+  padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
   background: rgb(255 255 255 / 24%);
@@ -737,37 +781,16 @@ function handleListPointerEnd(event: PointerEvent) {
   display: none;
 }
 .detail-toolbar {
-  display: flex;
-  min-height: 23px;
-  flex: none;
-  align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  border-bottom: 1px solid rgb(68 61 62 / 9%);
   color: #938788;
   font-size: 7.5px;
 }
 .detail-toolbar span {
   min-width: 0;
   overflow: hidden;
+  padding-right: 4px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.detail-toolbar .back-button {
-  display: flex;
-  height: 19px;
-  flex: none;
-  align-items: center;
-  gap: 1px;
-  padding: 2px 5px 2px 3px;
-  border: 0;
-  border-radius: 7px;
-  background: #443d3e;
-  color: #fffaf3;
-  cursor: pointer;
-  font: inherit;
-  font-size: 8.5px;
-  font-weight: 650;
 }
 .back-button svg {
   width: 11px;
@@ -779,16 +802,16 @@ function handleListPointerEnd(event: PointerEvent) {
   stroke-width: 2;
 }
 .news-detail h2 {
-  margin: 6px 1px 3px;
+  margin: 6px 5px 3px;
   color: #443d3e;
   font-size: 11px;
   font-weight: 650;
   line-height: 1.4;
 }
 .detail-content {
-  margin: 2px 1px 6px;
+  margin: 2px 5px 6px;
   color: #655b5c;
-  font-size: 9px;
+  font-size: 9.5px;
   line-height: 1.55;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -797,7 +820,7 @@ function handleListPointerEnd(event: PointerEvent) {
   display: flex;
   flex: none;
   justify-content: flex-end;
-  padding-top: 3px;
+  padding: 3px 4px 5px;
 }
 .detail-actions button {
   background: #443d3e;

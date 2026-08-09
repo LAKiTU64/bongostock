@@ -98,7 +98,7 @@ Phase 0～6 文档是历史实施快照；当前状态以 README、本文件、`
 
 - 全市场、简报和个股三个范围；个股联动本地分组、股票、指数和场内基金；
 - 内置检索主题与临时自定义完整检索词，不保存搜索历史或检索词收藏；
-- 客户端固定发送不限时间、最新优先，只显示约 10 条和约 20 条两个召回档位；
+- 客户端提供 1 天、3 天、7 天和不限四档时间范围，固定最新优先，并提供约 10 条和约 20 条两个召回档位；
 - 条件变化不自动请求，只有搜索按钮或顶部刷新会调用 Gateway；
 - 使用已配置的 Gateway 地址和 Bearer Token，与当前行情选择内置/外接无关；
 - 客户端不直连妙想、不保存 `MX_APIKEY`、不包含本地资讯 Provider 或回退源；
@@ -112,7 +112,7 @@ Phase 0～6 文档是历史实施快照；当前状态以 README、本文件、`
 | `src/pages/main/index.vue` | 主窗口尺寸、缩放、拖动、点击和全局输入入口 |
 | `src/composables/useStockPanel.ts` | 浮窗开关、自适应定位和显示器边界 |
 | `src/pages/stock-panel/index.vue` | 行情/资讯模式、分组列表、详情图表、常驻、淡出和关闭交互 |
-| `src/pages/stock-panel/NewsPanel.vue` | 资讯范围、主题、召回档位、个股联动、结果列表和按需浮层 |
+| `src/pages/stock-panel/NewsPanel.vue` | 资讯范围、主题、时间范围、召回档位、个股联动、结果列表和按需浮层 |
 | `src/news/newsService.ts` | Gateway 资讯请求/响应类型与薄客户端 |
 | `src/stores/news.ts` | 资讯筛选与本机已读状态 |
 | `src/market/marketService.ts` | 内置/外接 Provider、报价、走势、日 K、搜索与缓存 |

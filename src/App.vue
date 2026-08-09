@@ -13,7 +13,7 @@ import type { MarketSettingsSnapshot } from './stores/market'
 
 import { useTauriListen } from './composables/useTauriListen'
 import { useWindowState } from './composables/useWindowState'
-import { LANGUAGE, LISTEN_KEY } from './constants'
+import { LANGUAGE, LISTEN_KEY, WINDOW_LABEL } from './constants'
 import { hideWindow, showWindow } from './plugins/window'
 import { useAppStore } from './stores/app'
 import { useCatStore } from './stores/cat'
@@ -69,6 +69,10 @@ watch(() => generalStore.appearance.language, (value) => {
 
 useTauriListen(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
   if (appWindow.label !== payload) return
+
+  // The stock panel must finish restoring its mode, size and position before
+  // its first visible frame. Its page owns the final show operation.
+  if (appWindow.label === WINDOW_LABEL.STOCK_PANEL) return
 
   showWindow()
 })

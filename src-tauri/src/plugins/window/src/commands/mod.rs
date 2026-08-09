@@ -64,7 +64,7 @@ pub fn reveal_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) {
     let app_handle = app_handle.clone();
 
     spawn(async move {
-        show_window(app_handle, window).await;
+        show_window(app_handle, window, None, None).await;
     });
 }
 

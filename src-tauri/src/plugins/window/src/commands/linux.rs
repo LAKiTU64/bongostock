@@ -1,7 +1,16 @@
-use tauri::{AppHandle, Runtime, WebviewWindow, command};
+use tauri::{AppHandle, PhysicalPosition, Runtime, WebviewWindow, command};
 
 #[command]
-pub async fn show_window<R: Runtime>(_app_handle: AppHandle<R>, window: WebviewWindow<R>) {
+pub async fn show_window<R: Runtime>(
+    _app_handle: AppHandle<R>,
+    window: WebviewWindow<R>,
+    x: Option<i32>,
+    y: Option<i32>,
+) {
+    if let (Some(x), Some(y)) = (x, y) {
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+    }
+
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();

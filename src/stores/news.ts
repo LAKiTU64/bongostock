@@ -20,7 +20,7 @@ export const useNewsStore = defineStore('news', () => {
 
   function init() {
     if (!['market', 'briefing', 'security'].includes(scope.value)) scope.value = 'market'
-    timeRange.value = 'all'
+    if (!['1d', '3d', '7d', 'all'].includes(timeRange.value)) timeRange.value = '1d'
     sort.value = 'newest'
     if (!['standard', 'extended'].includes(depth.value)) depth.value = 'standard'
     readIds.value = uniqueTail(readIds.value, MAX_LOCAL_IDS)

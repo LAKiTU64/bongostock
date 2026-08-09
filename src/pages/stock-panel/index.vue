@@ -66,6 +66,8 @@ const CHART_WIDTH = 248
 const CHART_HEIGHT = 74
 const CHART_PADDING_X = 4
 const CHART_PADDING_Y = 5
+const STOCK_PANEL_WIDTH = 296
+const STOCK_PANEL_HEIGHT = 225
 
 type DetailMode = 'intraday' | 'five-day' | 'day-k'
 interface ChartHoverState {
@@ -161,16 +163,17 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, async ({ payload }) => {
   panelLifecycle = 'active'
   retainedStateUntil = 0
   closeInProgress = false
+  let targetPosition: { x: number, y: number } | undefined
   if (!restoreState) {
     await setPanelMode('market')
     closeDetail()
-    await positionStockPanelNearPet()
+    targetPosition = await positionStockPanelNearPet()
   } else {
-    await resizePanelForMode(panelMode.value)
+    await resizePanel()
   }
   setPinned(false)
   resetIdleFade()
-  await showWindow()
+  await showWindow(undefined, targetPosition)
   void refreshQuotes()
 })
 
@@ -389,12 +392,12 @@ async function setPanelMode(mode: 'market' | 'news') {
   if (mode === 'news') closeDetail()
   panelMode.value = mode
   resetIdleFade()
-  await resizePanelForMode(mode)
+  await resizePanel()
 }
 
-async function resizePanelForMode(mode: 'market' | 'news') {
+async function resizePanel() {
   await nextTick()
-  await appWindow.setSize(new LogicalSize(270, mode === 'news' ? 225 : 203))
+  await appWindow.setSize(new LogicalSize(STOCK_PANEL_WIDTH, STOCK_PANEL_HEIGHT))
 }
 
 function handleRefresh() {
@@ -411,7 +414,7 @@ function handleRefresh() {
 }
 
 async function closePanel(retainState: boolean) {
-  if (closeInProgress || !await appWindow.isVisible()) return
+  if (closeInProgress) return
 
   closeInProgress = true
   const retentionSeconds = watchlistStore.panel.stateRetentionSeconds

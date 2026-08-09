@@ -49,6 +49,7 @@ let leftPulseTimer: ReturnType<typeof setTimeout> | undefined
 let rightPulseTimer: ReturnType<typeof setTimeout> | undefined
 let pointerStart: { x: number, y: number } | undefined
 let isDragging = false
+let dragResetTimer: ReturnType<typeof setTimeout> | undefined
 let contextMenuOpen = false
 let panelFocusTimer: ReturnType<typeof setTimeout> | undefined
 let unlistenMainFocus: (() => void) | undefined
@@ -74,6 +75,7 @@ onUnmounted(() => {
   clearTimeout(leftPulseTimer)
   clearTimeout(rightPulseTimer)
   clearTimeout(panelFocusTimer)
+  clearTimeout(dragResetTimer)
   unlistenMainFocus?.()
   phase1Controller.abort()
 })
@@ -134,6 +136,7 @@ watch(() => generalStore.app.taskbarVisible, setTaskbarVisibility, { immediate: 
 function handlePointerDown(event: PointerEvent) {
   if (event.button !== 0) return
 
+  clearTimeout(dragResetTimer)
   pointerStart = { x: event.screenX, y: event.screenY }
   isDragging = false
 }
@@ -152,6 +155,11 @@ function handlePointerMove(event: PointerEvent) {
 
 function handlePointerEnd() {
   pointerStart = undefined
+
+  // startDragging() can make Windows swallow the synthetic click that would
+  // normally clear this flag. Keep it through the current event turn so a
+  // real post-drag click is still suppressed, then release it automatically.
+  if (isDragging) dragResetTimer = setTimeout(() => isDragging = false, 0)
 }
 
 function handlePetClick() {

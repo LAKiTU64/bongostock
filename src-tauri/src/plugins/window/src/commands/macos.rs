@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 use crate::MAIN_WINDOW_LABEL;
-use tauri::{AppHandle, Runtime, WebviewWindow, command};
+use tauri::{AppHandle, PhysicalPosition, Runtime, WebviewWindow, command};
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel};
 
 enum MacOSPanelStatus {
@@ -60,7 +60,16 @@ fn set_macos_panel<R: Runtime>(
 }
 
 #[command]
-pub async fn show_window<R: Runtime>(app_handle: AppHandle<R>, window: WebviewWindow<R>) {
+pub async fn show_window<R: Runtime>(
+    app_handle: AppHandle<R>,
+    window: WebviewWindow<R>,
+    x: Option<i32>,
+    y: Option<i32>,
+) {
+    if let (Some(x), Some(y)) = (x, y) {
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+    }
+
     if is_main_window(&window) {
         set_macos_panel(&app_handle, &window, MacOSPanelStatus::Show);
     } else {
