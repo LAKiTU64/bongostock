@@ -19,6 +19,7 @@ import { useAppStore } from './stores/app'
 import { useCatStore } from './stores/cat'
 import { useGeneralStore } from './stores/general'
 import { useMarketStore } from './stores/market'
+import { useNewsStore } from './stores/news'
 import { useShortcutStore } from './stores/shortcut.ts'
 import { useSkinStore } from './stores/skin'
 import { useWatchlistStore } from './stores/watchlist'
@@ -27,6 +28,7 @@ const appStore = useAppStore()
 const catStore = useCatStore()
 const generalStore = useGeneralStore()
 const marketStore = useMarketStore()
+const newsStore = useNewsStore()
 const skinStore = useSkinStore()
 const shortcutStore = useShortcutStore()
 const watchlistStore = useWatchlistStore()
@@ -44,6 +46,8 @@ onMounted(async () => {
   await generalStore.init()
   await marketStore.$tauri.start()
   marketStore.init()
+  await newsStore.$tauri.start()
+  newsStore.init()
   await shortcutStore.$tauri.start()
   await watchlistStore.$tauri.start()
   watchlistStore.init()

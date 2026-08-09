@@ -12,17 +12,12 @@ const PANEL_GAP = 12
  * monitor's work area. Positions and sizes returned by Tauri are physical
  * pixels, which keeps placement stable on Retina displays.
  */
-export async function toggleStockPanel(): Promise<void> {
+export async function positionStockPanelNearPet(): Promise<void> {
   const panel = await WebviewWindow.getByLabel(WINDOW_LABEL.STOCK_PANEL)
 
   if (!panel) return
 
-  if (await panel.isVisible()) {
-    await hideWindow(WINDOW_LABEL.STOCK_PANEL)
-    return
-  }
-
-  const pet = WebviewWindow.getCurrent()
+  const pet = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN) ?? WebviewWindow.getCurrent()
   const [petPosition, petSize, panelSize, monitors] = await Promise.all([
     pet.outerPosition(),
     pet.outerSize(),
@@ -60,5 +55,17 @@ export async function toggleStockPanel(): Promise<void> {
   y = Math.max(workTop, Math.min(y, workBottom - panelSize.height))
 
   await panel.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)))
+}
+
+export async function toggleStockPanel(): Promise<void> {
+  const panel = await WebviewWindow.getByLabel(WINDOW_LABEL.STOCK_PANEL)
+
+  if (!panel) return
+
+  if (await panel.isVisible()) {
+    await hideWindow(WINDOW_LABEL.STOCK_PANEL)
+    return
+  }
+
   await showWindow(WINDOW_LABEL.STOCK_PANEL)
 }

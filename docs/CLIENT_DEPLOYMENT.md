@@ -152,15 +152,17 @@ pnpm tauri build --target universal-apple-darwin --bundles app,dmg
 
 通用构建必须在 macOS 上执行。任何一个依赖无法交叉编译时，应先分别构建两种架构定位问题，不要直接发布未验证的 universal 产物。
 
-## 6. 连接外接行情网关
+## 6. 连接 BongoStock Gateway
 
-打开“偏好设置 → 行情”，选择“外接行情服务”，填写：
+打开“偏好设置 → 行情”并填写：
 
 - 服务地址：`https://<服务器域名或公网 IP>`；
 - Bearer Token：服务端 `/etc/bongostock-gateway.env` 中的 `BONGOSTOCK_TOKEN`；
 - 超时：默认 8,000 ms。
 
 点击“测试连接”。成功后只请求 `/v1/capabilities`，不会携带证券代码。Token 会明文保存在当前用户的应用数据中并在重启后恢复，请勿上传或分享这些文件。
+
+选择“外接行情服务”后，报价、搜索、走势和 K 线使用 Gateway；选择“内置行情”时，这些行情请求仍使用客户端内置源。资讯中心与该选择相互独立，只要 Gateway 提供 `/v1/news/search` 且服务端已配置资讯能力，资讯仍通过上述地址和 Token 请求。
 
 常见 Store 位置：
 
@@ -188,10 +190,11 @@ cargo test --locked
 - 两套内置 MMmmmoko 模型、鼠标和键盘反馈；
 - 透明窗口、拖动、托盘、置顶、穿透和缩放；
 - 默认四个指数、报价、分时、5 日和日 K；
+- 全市场、简报和个股资讯，约 10/20 条档位及右键自定义检索词；
 - 外接 HTTPS、错误 Token、断网和重启后 Token 恢复；
 - Windows 普通/管理员权限差异；
 - macOS Input Monitoring 授权前后的行为；
-- 仓库和产物不包含 StrayRogue/Steam 私人皮肤、Token 或本机配置。
+- 仓库和产物不包含项目外私人皮肤、Token 或本机配置。
 
 ## 8. 当前交付边界
 

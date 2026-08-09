@@ -14,10 +14,12 @@ import { useMarketStore } from '@/stores/market'
 import {
   MAX_DIMMED_OPACITY,
   MAX_FADE_DELAY_SECONDS,
+  MAX_STATE_RETENTION_SECONDS,
   MAX_WATCHLIST_GROUPS,
   MAX_WATCHLIST_SIZE,
   MIN_DIMMED_OPACITY,
   MIN_FADE_DELAY_SECONDS,
+  MIN_STATE_RETENTION_SECONDS,
   useWatchlistStore,
 } from '@/stores/watchlist'
 
@@ -40,6 +42,10 @@ const fadeDelaySeconds = computed({
 const dimmedOpacity = computed({
   get: () => watchlistStore.panel.dimmedOpacity,
   set: value => updatePanelSettings({ dimmedOpacity: value }),
+})
+const stateRetentionSeconds = computed({
+  get: () => watchlistStore.panel.stateRetentionSeconds,
+  set: value => updatePanelSettings({ stateRetentionSeconds: value }),
 })
 const marketSource = computed({
   get: () => marketStore.source,
@@ -316,6 +322,23 @@ function getQuoteName(code: string) {
   </ProList>
 
   <ProList title="行情浮窗">
+    <ProListItem
+      description="点击浮窗和桌宠以外区域自动关闭后，在这段时间内重新打开会恢复原来的模式、详情和筛选状态；0 表示不保留。"
+      title="关闭后状态保留"
+    >
+      <SpaceCompact>
+        <InputNumber
+          v-model:value="stateRetentionSeconds"
+          class="w-22"
+          :max="MAX_STATE_RETENTION_SECONDS"
+          :min="MIN_STATE_RETENTION_SECONDS"
+          :precision="0"
+        />
+
+        <SpaceAddon>秒</SpaceAddon>
+      </SpaceCompact>
+    </ProListItem>
+
     <ProListItem
       description="浮窗停止操作后，等待多久开始变淡。"
       title="变淡等待时间"

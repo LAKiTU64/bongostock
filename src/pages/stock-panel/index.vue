@@ -1,19 +1,23 @@
 <script setup lang="ts">
+import { LogicalSize } from '@tauri-apps/api/dpi'
 import { emit } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useEventListener } from '@vueuse/core'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import type { IntradayPoint, StockKline, StockQuote, TrendSeries } from '@/market/marketService'
 import type { MarketSettingsSnapshot } from '@/stores/market'
 import type { StockPanelSettings, WatchlistGroup } from '@/stores/watchlist'
 
+import { positionStockPanelNearPet } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
 import { hideWindow } from '@/plugins/window'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
+
+import NewsPanel from './NewsPanel.vue'
 
 const appWindow = getCurrentWebviewWindow()
 const marketStore = useMarketStore()
@@ -34,6 +38,10 @@ const chartHover = ref<ChartHoverState>()
 const intradayError = ref('')
 const trendError = ref('')
 const klineError = ref('')
+const panelMode = ref<'market' | 'news'>('market')
+const newsLoading = ref(false)
+const initialNewsSecurityCode = ref('')
+const newsRefreshToken = ref(0)
 let idleFadeTimer: ReturnType<typeof setTimeout> | undefined
 let detailAbortController: AbortController | undefined
 let detailRequestId = 0
@@ -48,6 +56,7 @@ let groupTabsDrag: {
 } | undefined
 let suppressGroupTabClick = false
 let unlistenFocus: (() => void) | undefined
+let retainedStateUntil = 0
 
 const DRAG_THRESHOLD = 4
 const CHART_WIDTH = 248
@@ -140,10 +149,19 @@ watch(() => [
   watchlistStore.panel.dimmedOpacity,
 ], resetIdleFade)
 
-useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
+useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, async ({ payload }) => {
   if (payload !== WINDOW_LABEL.STOCK_PANEL) return
 
-  closeDetail()
+  const restoreState = watchlistStore.panel.stateRetentionSeconds > 0
+    && Date.now() <= retainedStateUntil
+  retainedStateUntil = 0
+  if (!restoreState) {
+    await setPanelMode('market')
+    closeDetail()
+    await positionStockPanelNearPet()
+  } else {
+    await resizePanelForMode(panelMode.value)
+  }
   setPinned(false)
   resetIdleFade()
   void refreshQuotes()
@@ -177,7 +195,7 @@ useEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
 
   event.preventDefault()
-  closePanel()
+  closePanel(false)
 })
 
 onMounted(async () => {
@@ -191,7 +209,7 @@ onMounted(async () => {
       appWindow.isFocused(),
     ])
 
-    if (!mainFocused && !panelFocused && !isPinned.value) closePanel()
+    if (!mainFocused && !panelFocused && !isPinned.value) closePanel(true)
   })
 
   if (await appWindow.isVisible()) void refreshQuotes()
@@ -234,6 +252,13 @@ function handleDragPointerMove(event: PointerEvent) {
 
 function handleDragPointerEnd() {
   dragPointerStart = undefined
+}
+
+function startPanelDragging(event: PointerEvent) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  resetIdleFade()
+  void appWindow.startDragging()
 }
 
 async function refreshQuotes() {
@@ -348,7 +373,24 @@ function togglePinned() {
   resetIdleFade()
 }
 
+async function setPanelMode(mode: 'market' | 'news') {
+  if (mode === 'news' && selectedQuote.value) initialNewsSecurityCode.value = selectedQuote.value.code
+  if (mode === 'news') closeDetail()
+  panelMode.value = mode
+  resetIdleFade()
+  await resizePanelForMode(mode)
+}
+
+async function resizePanelForMode(mode: 'market' | 'news') {
+  await nextTick()
+  await appWindow.setSize(new LogicalSize(270, mode === 'news' ? 225 : 203))
+}
+
 function handleRefresh() {
+  if (panelMode.value === 'news') {
+    newsRefreshToken.value += 1
+    return
+  }
   if (selectedQuote.value) {
     reloadDetail()
     return
@@ -357,8 +399,13 @@ function handleRefresh() {
   void refreshQuotes()
 }
 
-function closePanel() {
-  closeDetail()
+function closePanel(retainState: boolean) {
+  if (retainState && watchlistStore.panel.stateRetentionSeconds > 0) {
+    retainedStateUntil = Date.now() + watchlistStore.panel.stateRetentionSeconds * 1000
+  } else {
+    retainedStateUntil = 0
+    closeDetail()
+  }
   setPinned(false)
   void hideWindow(WINDOW_LABEL.STOCK_PANEL)
 }
@@ -666,7 +713,105 @@ function buildKlineChart(klines: StockKline[]) {
     @pointermove.passive="resetIdleFade"
     @wheel.passive="resetIdleFade"
   >
+    <nav
+      aria-label="浮窗功能"
+      class="mode-tabs"
+      data-tauri-drag-region
+      @pointercancel="handleDragPointerEnd"
+      @pointerdown="handleDragPointerDown"
+      @pointermove="handleDragPointerMove"
+      @pointerup="handleDragPointerEnd"
+    >
+      <button
+        :class="{ active: panelMode === 'market' }"
+        type="button"
+        @click.stop="setPanelMode('market')"
+        @pointerdown.stop
+      >
+        行情
+      </button>
+      <button
+        :class="{ active: panelMode === 'news' }"
+        type="button"
+        @click.stop="setPanelMode('news')"
+        @pointerdown.stop
+      >
+        资讯
+      </button>
+      <button
+        :aria-pressed="isPinned"
+        class="pin-button"
+        :class="{ active: isPinned }"
+        title="常驻浮窗"
+        type="button"
+        @click.stop="togglePinned"
+        @pointerdown.stop
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+        >
+          <path d="M9 3h6l-1 6 3 3v2h-4v7l-1 1-1-1v-7H7v-2l3-3-1-6Z" />
+        </svg>
+      </button>
+      <button
+        :aria-label="panelMode === 'news' ? '刷新资讯' : '刷新行情'"
+        class="refresh-button"
+        :disabled="loading || detailLoading || newsLoading"
+        :title="panelMode === 'news' ? '刷新资讯' : selectedQuote ? '刷新该股票详细行情' : '刷新行情'"
+        type="button"
+        @click.stop="handleRefresh"
+        @pointerdown.stop
+      >
+        {{ (loading || detailLoading || newsLoading) ? '…' : '↻' }}
+      </button>
+      <button
+        aria-label="拖动浮窗"
+        class="drag-handle"
+        title="拖动浮窗"
+        type="button"
+        @pointerdown.stop="startPanelDragging"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 12 18"
+        >
+          <circle
+            cx="3"
+            cy="4"
+            r="1.2"
+          />
+          <circle
+            cx="9"
+            cy="4"
+            r="1.2"
+          />
+          <circle
+            cx="3"
+            cy="9"
+            r="1.2"
+          />
+          <circle
+            cx="9"
+            cy="9"
+            r="1.2"
+          />
+          <circle
+            cx="3"
+            cy="14"
+            r="1.2"
+          />
+          <circle
+            cx="9"
+            cy="14"
+            r="1.2"
+          />
+        </svg>
+      </button>
+    </nav>
+
     <header
+      v-if="panelMode === 'market'"
       class="panel-bar"
       data-tauri-drag-region
       @pointercancel="handleDragPointerEnd"
@@ -675,7 +820,7 @@ function buildKlineChart(klines: StockKline[]) {
       @pointerup="handleDragPointerEnd"
     >
       <nav
-        aria-label="行情分组"
+        aria-label="自选分组"
         class="group-tabs"
         role="tablist"
         @click.capture="handleGroupTabsClick"
@@ -699,39 +844,25 @@ function buildKlineChart(klines: StockKline[]) {
           {{ group.name }}
         </button>
       </nav>
-
-      <button
-        :aria-pressed="isPinned"
-        class="pin-button"
-        :class="{ active: isPinned }"
-        title="常驻浮窗"
-        type="button"
-        @click.stop="togglePinned"
-        @pointerdown.stop
-      >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-        >
-          <path d="M9 3h6l-1 6 3 3v2h-4v7l-1 1-1-1v-7H7v-2l3-3-1-6Z" />
-        </svg>
-      </button>
-
-      <button
-        aria-label="刷新行情"
-        class="refresh-button"
-        :disabled="loading || detailLoading"
-        :title="selectedQuote ? '刷新该股票详细行情' : '刷新行情'"
-        type="button"
-        @click.stop="handleRefresh"
-        @pointerdown.stop
-      >
-        {{ (loading || detailLoading) ? '…' : '↻' }}
-      </button>
     </header>
 
     <section
-      v-if="selectedQuote"
+      v-if="panelMode === 'news'"
+      class="news-view"
+    >
+      <NewsPanel
+        :active-group-id="activeGroupId"
+        :initial-security-code="initialNewsSecurityCode"
+        :quotes="quotes"
+        :refresh-token="newsRefreshToken"
+        @activity="resetIdleFade"
+        @group-change="selectGroup"
+        @loading="newsLoading = $event"
+      />
+    </section>
+
+    <section
+      v-else-if="selectedQuote"
       class="detail-view"
       @click.stop
       @pointerdown="resetIdleFade"
@@ -1009,6 +1140,9 @@ function buildKlineChart(klines: StockKline[]) {
 }
 
 .stock-panel {
+  --tab-gap: 2px;
+
+  position: relative;
   display: flex;
   box-sizing: border-box;
   width: 100%;
@@ -1016,18 +1150,90 @@ function buildKlineChart(klines: StockKline[]) {
   flex-direction: column;
   padding: 6px;
   overflow: hidden;
-  border: 1px solid rgb(68 61 62 / 14%);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 12px;
   background: rgb(255 250 243 / 97%);
-  clip-path: inset(0 round 14px);
+  clip-path: inset(0 round 12px);
   color: #443d3e;
   font-family: var(--font-ui);
   opacity: 1;
   transition: opacity 500ms ease;
 }
 
+.stock-panel::before {
+  position: absolute;
+  z-index: 10;
+  box-sizing: border-box;
+  border: 1px solid rgb(68 61 62 / 14%);
+  border-radius: 12px;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+}
+
 .stock-panel.is-dimmed {
   opacity: var(--dimmed-opacity);
+}
+
+.mode-tabs {
+  display: grid;
+  box-sizing: border-box;
+  height: 26px;
+  min-height: 26px;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 24px 24px 16px;
+  gap: var(--tab-gap);
+  padding-top: 1px;
+  padding-bottom: 3px;
+  cursor: grab;
+}
+
+.mode-tabs:active {
+  cursor: grabbing;
+}
+
+.mode-tabs button {
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 7px;
+  background: rgb(68 61 62 / 7%);
+  color: #817576;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9.5px;
+}
+
+.mode-tabs button.active {
+  background: #443d3e;
+  color: #fffaf3;
+  font-weight: 650;
+}
+
+.mode-tabs .drag-handle {
+  display: grid;
+  width: 16px;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  color: #9a8e8f;
+  cursor: grab;
+}
+
+.mode-tabs .drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle svg {
+  width: 9px;
+  height: 15px;
+  fill: currentcolor;
+}
+
+.news-view {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .detail-view {
@@ -1343,7 +1549,9 @@ function buildKlineChart(klines: StockKline[]) {
 
 .panel-bar {
   display: flex;
-  min-height: 29px;
+  box-sizing: border-box;
+  height: 26px;
+  min-height: 26px;
   flex: none;
   align-items: center;
   gap: 3px;
@@ -1359,7 +1567,7 @@ function buildKlineChart(klines: StockKline[]) {
   display: flex;
   min-width: 0;
   flex: 1;
-  gap: 2px;
+  gap: var(--tab-gap);
   overflow-x: auto;
   overscroll-behavior-x: contain;
   -ms-overflow-style: none;
@@ -1373,10 +1581,12 @@ function buildKlineChart(klines: StockKline[]) {
 }
 
 .group-tab {
+  box-sizing: border-box;
+  height: 19px;
   flex: none;
   padding: 4px 7px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: #817576;
   cursor: pointer;
@@ -1401,7 +1611,7 @@ function buildKlineChart(klines: StockKline[]) {
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: rgb(68 61 62 / 9%);
   color: #443d3e;
   cursor: pointer;

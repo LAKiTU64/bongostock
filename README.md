@@ -1,9 +1,9 @@
 # BongoStock
 
-BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键盘按下和鼠标点击次数、响应输入动作，并在用户主动点击桌宠时打开自选行情浮窗。
+BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键盘按下和鼠标点击次数、响应输入动作，并在用户主动点击桌宠时打开行情/资讯浮窗。
 
 - 当前版本：`0.1.0`
-- 当前阶段：Phase 6，公开源码后的个人 Alpha 稳定化
+- 当前阶段：个人 Alpha 稳定化；资讯中心 Phase 0～6 已实现
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
 - 软件包状态：尚未发布正式安装包、签名构建或 GitHub Release
@@ -31,13 +31,13 @@ BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键
 
 自定义外观通过本地 `.bongoskin`/ZIP 包导入，当前支持 `layered-png-v1`：左右爪各有静止和拍下图层。导入器限制压缩包大小、文件数量、单文件大小和路径，并拒绝目录穿越与可执行内容。
 
-StrayRogue/Steam 素材不在本仓库、不在内置资源、不在 Git 历史中，也不会进入公开构建。个人本地皮肤只能从项目外导入；未取得明确再分发许可前不得上传或打包。
+项目外私人皮肤不在本仓库、不在内置资源、不在 Git 历史中，也不会进入公开构建。未取得明确再分发许可前不得上传或打包。
 
 ### 自选行情
 
 - 点击桌宠打开独立行情浮窗；
-- 每次打开时按桌宠当前位置重新定位，优先显示在下方，空间不足时显示在上方；
-- 浮窗可拖动，点击外部区域关闭，`Esc` 始终可以关闭；
+- 首次打开或临时状态回收后按桌宠当前位置重新定位，优先显示在下方，空间不足时显示在上方；
+- 浮窗顶栏提供专用拖拽手柄；点击外部区域关闭后默认保留状态和拖拽位置30秒，期间切换行情/资讯或重新打开不会改变位置；保留时间可在行情设置中调整，`Esc` 始终可以关闭并清除临时状态；
 - 常驻按钮只对当前一次打开有效；
 - 最多 8 个分组，全部分组合计最多 50 只沪深股票、指数或场内基金；
 - 列表采用紧凑双栏布局；
@@ -75,7 +75,18 @@ POST /v1/trends
 POST /v1/klines
 ```
 
+资讯中心额外使用 Gateway 的 `POST /v1/news/search`。资讯配置与行情源选择相互独立：即使行情使用内置源，只要已配置可用的 Gateway 地址和 Bearer Token，资讯仍可通过 Gateway 使用。
+
 完整请求与响应约定见 [`docs/EXTERNAL_MARKET_API_V1.md`](docs/EXTERNAL_MARKET_API_V1.md)。证券代码放在 POST body 中只能减少 URL/访问日志暴露；HTTP 仍是明文，HTTPS 也不能隐藏外接服务器自身看到的代码。
+
+## 资讯中心
+
+- 提供全市场、简报和个股三个范围；个股范围联动本地自选分组与证券；
+- 使用内置主题，也可右击搜索按钮临时输入完整检索词；不保存搜索历史或检索词收藏；
+- 客户端固定不限时间并按发布时间倒序展示，提供约 10 条和约 20 条两个召回档位；
+- 只在用户点击搜索或顶部刷新时请求，不后台轮询；
+- 数据仅由 BongoStock Gateway 转发，客户端不直连上游资讯服务、不保存上游 API Key，也不提供本地资讯回退；
+- 新闻可展开摘要并通过系统浏览器打开原文，已读条目在本机淡化显示。
 
 ## 技术栈
 
@@ -133,20 +144,20 @@ pnpm run audit:release
 
 ## 文档
 
-- 当前功能基线：[`docs/PHASE_6_BASELINE.md`](docs/PHASE_6_BASELINE.md)
+- 资讯中心实现基线：[`docs/NEWS_CENTER_DESIGN.md`](docs/NEWS_CENTER_DESIGN.md)
 - 项目接续总览：[`docs/PROJECT_HANDOFF.md`](docs/PROJECT_HANDOFF.md)
 - 产品与技术方案：[`docs/BongoStock_Product_Spec_v0.1.md`](docs/BongoStock_Product_Spec_v0.1.md)
+- Phase 6 行情功能历史快照：[`docs/PHASE_6_BASELINE.md`](docs/PHASE_6_BASELINE.md)
 - 外接行情协议：[`docs/EXTERNAL_MARKET_API_V1.md`](docs/EXTERNAL_MARKET_API_V1.md)
 - 新设备接续提示：[`HANDOFF_PROMPT.md`](HANDOFF_PROMPT.md)
 - 设备迁移/克隆清单：[`docs/DEVICE_TRANSFER_CHECKLIST.md`](docs/DEVICE_TRANSFER_CHECKLIST.md)
 - Windows/macOS 客户端部署：[`docs/CLIENT_DEPLOYMENT.md`](docs/CLIENT_DEPLOYMENT.md)
-- Phase 0～5：历史实施快照，不代表当前功能上限
+- Phase 0～6：历史实施快照，不代表当前功能上限
 
 ## 素材与署名
 
 - 跨平台工程底座来自 [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat)，遵循其 MIT License；
 - 内置模型来源链指向 [MMmmmoko/Bongo-Cat-Mver](https://github.com/MMmmmoko/Bongo-Cat-Mver)，模型索引与包格式参考 [ayangweb/Awesome-BongoCat](https://github.com/ayangweb/Awesome-BongoCat)；
-- Bongo Cat 原始形象由 **StrayRogue** 创作；Steam 的 Bongo Cat 页面注明游戏基于其画作与梗图；
 - 行情模块使用 [zhangxiangliang/stock-api](https://github.com/zhangxiangliang/stock-api) 2.7.3。
 
 完整声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

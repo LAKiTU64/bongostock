@@ -15,6 +15,7 @@ export interface WatchlistGroup {
 export interface StockPanelSettings {
   fadeDelaySeconds: number
   dimmedOpacity: number
+  stateRetentionSeconds: number
 }
 
 const CODE_PATTERN = /^(?:SH|SZ)\d{6}$/
@@ -25,6 +26,8 @@ export const MIN_FADE_DELAY_SECONDS = 1
 export const MAX_FADE_DELAY_SECONDS = 300
 export const MIN_DIMMED_OPACITY = 10
 export const MAX_DIMMED_OPACITY = 100
+export const MIN_STATE_RETENTION_SECONDS = 0
+export const MAX_STATE_RETENTION_SECONDS = 300
 
 function normalizeCode(value: string) {
   const code = value.trim().toUpperCase()
@@ -55,6 +58,11 @@ function sanitizePanelSettings(values: Partial<StockPanelSettings>) {
       Number.isFinite(values.dimmedOpacity) ? Number(values.dimmedOpacity) : 28,
       MIN_DIMMED_OPACITY,
       MAX_DIMMED_OPACITY,
+    ),
+    stateRetentionSeconds: clamp(
+      Number.isFinite(values.stateRetentionSeconds) ? Number(values.stateRetentionSeconds) : 30,
+      MIN_STATE_RETENTION_SECONDS,
+      MAX_STATE_RETENTION_SECONDS,
     ),
   }
 }
@@ -101,6 +109,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   const panel = reactive<StockPanelSettings>({
     fadeDelaySeconds: 2,
     dimmedOpacity: 28,
+    stateRetentionSeconds: 30,
   })
   const totalCodes = computed(() => codes.value.length)
 

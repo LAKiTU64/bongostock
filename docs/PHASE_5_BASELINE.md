@@ -1,6 +1,6 @@
 # Phase 5 历史功能基线
 
-> 历史实施快照：本文记录 Phase 5 当时的代码与环境，不代表当前行为。当前状态见 [Phase 6 基线](PHASE_6_BASELINE.md)和[项目接续总览](PROJECT_HANDOFF.md)。
+> 历史实施快照：本文记录 Phase 5 当时的代码与环境，不代表当前行为。当前状态见 [README](../README.md)、[项目接续总览](PROJECT_HANDOFF.md)和[资讯中心设计](NEWS_CENTER_DESIGN.md)。
 
 日期：2026-08-08
 
@@ -12,7 +12,7 @@ Phase 5 是 BongoStock 的个人使用 Alpha 稳定化阶段。主要功能已�
 
 - Windows 开发环境与 Tauri 运行链路可用；
 - 键鼠累计计数、左右拍爪、持久化和 9 位显示上限；
-- MMmmmoko Live2D 内置皮肤；StrayRogue 等其他皮肤通过项目外 `.bongoskin` 包导入；
+- MMmmmoko Live2D 内置皮肤；其他皮肤通过项目外 `.bongoskin` 包导入；
 - 桌宠尺寸 50%～300% 连续缩放；
 - 矢量三横杠菜单、托盘、置顶、穿透和开机启动；
 - Windows 管理员权限说明及不再提示开关；
@@ -33,14 +33,14 @@ Phase 5 是 BongoStock 的个人使用 Alpha 稳定化阶段。主要功能已�
 - 个人项目不建设复杂自动化测试体系；
 - 没有安装包、自动更新、代码签名或发布流程；
 - 不做后台轮询、周 K/月 K、提醒、AI、MCP 或自动交易；
-- StrayRogue/Irox Games 相关本机游戏素材尚未取得再分发许可，仅限项目外的个人皮肤包使用；
+- 未取得再分发许可的第三方素材仅限项目外的个人皮肤包使用；
 - macOS 在最新 UI 与皮肤改动后仍需一次轻量回归。
 
 ## 署名规则
 
 - 用户界面中，Live2D 标准模型显示为 `MMmmmoko`；
 - 用户导入的皮肤显示其清单中的作者和名称；
-- 内部持久化值兼容旧的 `github` 和 `steam`，新内置值为 `builtin:mmmmmoko`；
+- 内部持久化值兼容旧设置别名，新内置值为 `builtin:mmmmmoko`；
 - 平台名不再作为皮肤的用户可见名称。
 
 ## 性能记录
@@ -50,7 +50,7 @@ Windows 开发运行、整个 Tauri/WebView2 进程树静置采样：
 | 皮肤 | 总 CPU | 私有内存 | 持续 3D GPU |
 |---|---:|---:|---:|
 | MMmmmoko | 约 2.20% | 约 530.5 MB | 约 1.26% |
-| StrayRogue | 约 0.57% | 约 488.8 MB | 未检测到持续占用 |
+| 项目外静态图层皮肤 | 约 0.57% | 约 488.8 MB | 未检测到持续占用 |
 
 静态皮肤的 CPU 约低 74%。内存差异较小，主要开销来自预创建的三个 WebView。
 
