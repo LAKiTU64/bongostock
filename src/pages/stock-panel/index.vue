@@ -104,6 +104,21 @@ const detailTabLabel = computed(() => {
   if (detailMode.value === 'five-day') return '5日'
   return '日K'
 })
+const detailProvider = computed(() => {
+  if (detailMode.value === 'day-k') return dailyKlines.value.at(-1)?.source
+  if (detailMode.value === 'five-day') return trendSeries.value?.source
+  return (intradaySeries.value ?? trendSeries.value)?.source
+})
+const detailSourceLabel = computed(() => {
+  return detailProvider.value === 'fqkline'
+    ? 'fqkline'
+    : detailProvider.value === 'tencent'
+      ? '腾讯'
+      : detailProvider.value === 'eastmoney'
+        ? '东财'
+        : detailProvider.value === 'sina' ? '新浪' : ''
+})
+const detailSourceTitle = computed(() => `当前数据源：${detailSourceLabel.value}`)
 
 watch(() => watchlistStore.groups, (groups) => {
   if (groups.some(group => group.id === activeGroupId.value)) return
@@ -662,6 +677,12 @@ function buildKlineChart(klines: StockKline[]) {
           <strong>{{ selectedQuote.name }}</strong>
           <span>{{ selectedQuote.code }}<template v-if="detailLastTimestamp"> · {{ detailLastTimestamp }}</template></span>
         </div>
+        <span
+          class="detail-source"
+          :title="detailSourceTitle"
+        >
+          {{ detailSourceLabel }}
+        </span>
       </header>
 
       <nav
@@ -990,6 +1011,20 @@ function buildKlineChart(klines: StockKline[]) {
   font-size: 8px;
   line-height: 1.15;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-source {
+  flex: none;
+  align-self: flex-end;
+  margin: 0 2px 1px 3px;
+  padding: 1px 4px;
+  border: 1px solid rgb(68 61 62 / 9%);
+  border-radius: 4px;
+  background: rgb(68 61 62 / 6%);
+  color: #8d8182;
+  font-size: 7px;
+  line-height: 1.25;
   white-space: nowrap;
 }
 

@@ -6,7 +6,10 @@ import { useMarketStore } from '@/stores/market'
 
 export type StockQuote = Awaited<ReturnType<typeof stocks.auto.getStocks>>[number]
 export type SecurityCandidate = Pick<StockQuote, 'code' | 'name'>
-export type StockKline = Awaited<ReturnType<typeof stocks.auto.getKlines>>[number]
+type StockApiKline = Awaited<ReturnType<typeof stocks.auto.getKlines>>[number]
+export type StockKline = Omit<StockApiKline, 'source'> & {
+  source?: StockApiKline['source'] | 'fqkline'
+}
 
 export interface IntradayPoint {
   timestamp: string
@@ -180,7 +183,7 @@ async function fetchBuiltInIndexKlines(code: string, count = 30): Promise<StockK
       high: toFiniteNumber(high),
       low: toFiniteNumber(low),
       volume: toFiniteNumber(volume),
-      source: 'tencent',
+      source: 'fqkline',
     }
   })
 }
@@ -581,6 +584,7 @@ interface ExternalKline {
   high?: number | string
   low?: number | string
   volume?: number | string
+  source?: StockKline['source']
 }
 
 function extractArray<T>(payload: unknown, key: string): T[] {
@@ -630,5 +634,6 @@ function normalizeExternalKline(row: ExternalKline) {
     high: toFiniteNumber(row.high),
     low: toFiniteNumber(row.low),
     volume: toFiniteNumber(row.volume),
+    source: row.source,
   }
 }
