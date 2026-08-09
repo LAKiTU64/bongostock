@@ -123,6 +123,12 @@ async function fetchBuiltInTrendSeries(
   return result
 }
 
+const INDEX_CODE = /^(?:SH000|SZ399)\d{3}$/
+
+function isIndexCode(value: string) {
+  return INDEX_CODE.test(value)
+}
+
 async function fetchBuiltInDailyKlines(code: string, count = 30, force = false): Promise<StockKline[]> {
   const normalizedCode = code.trim().toUpperCase()
   const cacheKey = `${normalizedCode}:${count}:qfq`
@@ -130,17 +136,53 @@ async function fetchBuiltInDailyKlines(code: string, count = 30, force = false):
 
   if (cached && !force) return cached
 
-  const result = await stocks.auto.getKlines(normalizedCode, {
-    period: 'day',
-    count,
-    // Forward-adjusted prices keep the chart continuous across share splits
-    // (e.g. fund share splits like SH588170 on 2026-07-06), where raw prices
-    // would show a fake cliff.
-    adjust: 'qfq',
-  })
+  // Indices are only served reliably through Tencent's raw fqkline endpoint:
+  // stock-api's kline providers return nothing for indices (tencent/sina), and
+  // its qfq path yields no data for indices either. Route indices there
+  // directly, mirroring the gateway's index K-line fix (commit 2f013d0).
+  const result = isIndexCode(normalizedCode)
+    ? await fetchBuiltInIndexKlines(normalizedCode, count)
+    : await stocks.auto.getKlines(normalizedCode, {
+        period: 'day',
+        count,
+        // Forward-adjusted prices keep the chart continuous across share splits
+        // (e.g. fund share splits like SH588170 on 2026-07-06), where raw prices
+        // would show a fake cliff.
+        adjust: 'qfq',
+      })
 
   klineCache.set(cacheKey, { expiresAt: Date.now() + KLINE_CACHE_TTL_MS, value: result })
   return result
+}
+
+async function fetchBuiltInIndexKlines(code: string, count = 30): Promise<StockKline[]> {
+  const lower = code.toLowerCase()
+  const url = new URL(`https://ifzq.gtimg.cn/appstock/app/fqkline/get?param=${lower},day,,,${count},qfq`)
+  const response = await fetchWithRetry(url)
+
+  const payload = await response.json() as {
+    data?: Record<string, { day?: unknown[], qfqday?: unknown[] }>
+  }
+  const node = payload.data?.[lower]
+  if (!node) throw new Error('腾讯指数K线返回格式异常')
+
+  const series = (Array.isArray(node.qfqday) && node.qfqday.length > 0
+    ? node.qfqday
+    : Array.isArray(node.day) ? node.day : []) as unknown[]
+  if (series.length === 0) throw new Error('腾讯指数K线暂无数据')
+
+  return series.slice(-count).map((raw) => {
+    const [date, open, close, high, low, volume] = Array.isArray(raw) ? raw : []
+    return {
+      date: String(date ?? ''),
+      open: toFiniteNumber(open),
+      close: toFiniteNumber(close),
+      high: toFiniteNumber(high),
+      low: toFiniteNumber(low),
+      volume: toFiniteNumber(volume),
+      source: 'tencent',
+    }
+  })
 }
 
 async function searchBuiltInSecurityCandidates(value: string): Promise<SecurityCandidate[]> {
@@ -266,7 +308,7 @@ async function fetchTencentTrendSeries(
   // whole market, so amount/(volume*100) yields a per-share market average
   // (~17 CNY) instead of the index level. Pinning average to close keeps the
   // chart scale correct; the average line simply overlaps the price line.
-  const isIndex = /^(?:SH000|SZ399)\d{3}$/.test(code)
+  const isIndex = isIndexCode(code)
   const normalizedPoints = isIndex
     ? points.map(point => ({ ...point, average: point.close }))
     : points
