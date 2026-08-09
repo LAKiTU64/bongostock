@@ -44,6 +44,7 @@ let groupTabsDrag: {
   startX: number
   startScrollLeft: number
   moved: boolean
+  groupId?: string
 } | undefined
 let suppressGroupTabClick = false
 let unlistenFocus: (() => void) | undefined
@@ -297,12 +298,15 @@ function handleGroupTabsPointerDown(event: PointerEvent) {
   const tabs = event.currentTarget as HTMLElement
   if (tabs.scrollWidth <= tabs.clientWidth) return
 
+  const groupButton = (event.target as HTMLElement).closest<HTMLButtonElement>('.group-tab')
+
   suppressGroupTabClick = false
   groupTabsDrag = {
     pointerId: event.pointerId,
     startX: event.clientX,
     startScrollLeft: tabs.scrollLeft,
     moved: false,
+    groupId: groupButton?.dataset.groupId,
   }
   tabs.setPointerCapture(event.pointerId)
 }
@@ -324,7 +328,9 @@ function handleGroupTabsPointerEnd(event: PointerEvent) {
   if (!groupTabsDrag || groupTabsDrag.pointerId !== event.pointerId) return
 
   const tabs = event.currentTarget as HTMLElement
-  suppressGroupTabClick = event.type === 'pointerup' && groupTabsDrag.moved
+  const completedClick = event.type === 'pointerup' && !groupTabsDrag.moved && groupTabsDrag.groupId
+  suppressGroupTabClick = event.type === 'pointerup'
+  if (completedClick) selectGroup(completedClick)
   groupTabsDrag = undefined
   if (tabs.hasPointerCapture(event.pointerId)) tabs.releasePointerCapture(event.pointerId)
 }
@@ -685,6 +691,7 @@ function buildKlineChart(klines: StockKline[]) {
           :aria-selected="activeGroup?.id === group.id"
           class="group-tab"
           :class="{ active: activeGroup?.id === group.id }"
+          :data-group-id="group.id"
           role="tab"
           type="button"
           @click.stop="selectGroup(group.id)"
