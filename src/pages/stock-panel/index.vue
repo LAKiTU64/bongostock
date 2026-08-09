@@ -39,6 +39,13 @@ let detailAbortController: AbortController | undefined
 let detailRequestId = 0
 let quoteRequestId = 0
 let dragPointerStart: { x: number, y: number } | undefined
+let groupTabsDrag: {
+  pointerId: number
+  startX: number
+  startScrollLeft: number
+  moved: boolean
+} | undefined
+let suppressGroupTabClick = false
 let unlistenFocus: (() => void) | undefined
 
 const DRAG_THRESHOLD = 4
@@ -265,6 +272,69 @@ function selectGroup(id: string) {
   closeDetail()
   activeGroupId.value = id
   resetIdleFade()
+}
+
+function handleGroupTabsWheel(event: WheelEvent) {
+  const tabs = event.currentTarget as HTMLElement
+  const maxScrollLeft = tabs.scrollWidth - tabs.clientWidth
+  if (maxScrollLeft <= 0) return
+
+  const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+    ? event.deltaX
+    : event.deltaY
+  const multiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+    ? 16
+    : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? tabs.clientWidth : 1
+
+  tabs.scrollLeft = Math.max(0, Math.min(maxScrollLeft, tabs.scrollLeft + dominantDelta * multiplier))
+  event.preventDefault()
+  resetIdleFade()
+}
+
+function handleGroupTabsPointerDown(event: PointerEvent) {
+  if (event.button !== 0) return
+
+  const tabs = event.currentTarget as HTMLElement
+  if (tabs.scrollWidth <= tabs.clientWidth) return
+
+  suppressGroupTabClick = false
+  groupTabsDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startScrollLeft: tabs.scrollLeft,
+    moved: false,
+  }
+  tabs.setPointerCapture(event.pointerId)
+}
+
+function handleGroupTabsPointerMove(event: PointerEvent) {
+  if (!groupTabsDrag || groupTabsDrag.pointerId !== event.pointerId) return
+
+  const tabs = event.currentTarget as HTMLElement
+  const distance = event.clientX - groupTabsDrag.startX
+  if (!groupTabsDrag.moved && Math.abs(distance) < DRAG_THRESHOLD) return
+
+  groupTabsDrag.moved = true
+  tabs.scrollLeft = groupTabsDrag.startScrollLeft - distance
+  event.preventDefault()
+  resetIdleFade()
+}
+
+function handleGroupTabsPointerEnd(event: PointerEvent) {
+  if (!groupTabsDrag || groupTabsDrag.pointerId !== event.pointerId) return
+
+  const tabs = event.currentTarget as HTMLElement
+  suppressGroupTabClick = event.type === 'pointerup' && groupTabsDrag.moved
+  groupTabsDrag = undefined
+  if (tabs.hasPointerCapture(event.pointerId)) tabs.releasePointerCapture(event.pointerId)
+}
+
+function handleGroupTabsClick(event: MouseEvent) {
+  if (!suppressGroupTabClick) return
+
+  suppressGroupTabClick = false
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 function togglePinned() {
@@ -602,6 +672,12 @@ function buildKlineChart(klines: StockKline[]) {
         aria-label="行情分组"
         class="group-tabs"
         role="tablist"
+        @click.capture="handleGroupTabsClick"
+        @pointercancel.stop="handleGroupTabsPointerEnd"
+        @pointerdown.stop="handleGroupTabsPointerDown"
+        @pointermove.stop="handleGroupTabsPointerMove"
+        @pointerup.stop="handleGroupTabsPointerEnd"
+        @wheel.stop="handleGroupTabsWheel"
       >
         <button
           v-for="group in watchlistStore.groups"
@@ -612,7 +688,6 @@ function buildKlineChart(klines: StockKline[]) {
           role="tab"
           type="button"
           @click.stop="selectGroup(group.id)"
-          @pointerdown.stop
         >
           {{ group.name }}
         </button>
@@ -1280,7 +1355,10 @@ function buildKlineChart(klines: StockKline[]) {
   gap: 2px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  -ms-overflow-style: none;
   scrollbar-width: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .group-tabs::-webkit-scrollbar {
