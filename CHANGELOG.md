@@ -2,9 +2,9 @@
 
 本文件记录已发布版本之间的用户可见变化。日期使用本地时区。
 
-## 1.0.1 — 2026-08-10（待发布）
+## 1.0.1 — 2026-08-10
 
-本版全部为 macOS 修复，Windows 行为未改动。
+本版全部为 macOS 修复，Windows 行为未改动。Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 已通过 [GitHub Release v1.0.1](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.1) 发布。
 
 ### 新增
 

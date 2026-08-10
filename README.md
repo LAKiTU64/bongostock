@@ -3,10 +3,10 @@
 BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键盘按下和鼠标点击次数、响应输入动作，并在用户主动点击桌宠时打开行情/资讯浮窗。
 
 - 当前版本：`1.0.1`
-- 当前阶段：`1.0.1` 为 macOS 修复版，尚未发布；资讯中心 Phase 0～6 已实现
+- 当前阶段：`1.0.1`（macOS 修复版）已发布；资讯中心 Phase 0～6 已实现
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
-- 软件包状态：Windows x64 安装包已通过 [GitHub Release v1.0.0](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.0) 发布；`1.0.1` 的 Apple Silicon DMG 已在本机构建验证，尚未发布；当前构建未进行代码签名
+- 软件包状态：`1.0.1` 的 Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 已通过 [GitHub Release v1.0.1](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.1) 发布；当前构建未进行代码签名/公证
 - 变更记录：见 [CHANGELOG.md](CHANGELOG.md)
 
 ## 当前功能
