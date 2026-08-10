@@ -2,7 +2,7 @@ import type { Event } from '@tauri-apps/api/event'
 
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { availableMonitors } from '@tauri-apps/api/window'
+import { availableMonitors, currentMonitor } from '@tauri-apps/api/window'
 import { useDebounceFn } from '@vueuse/core'
 import { isNumber } from 'es-toolkit/compat'
 import { onMounted, ref, watch } from 'vue'
@@ -11,6 +11,7 @@ import { WINDOW_LABEL } from '@/constants'
 import { useAppStore } from '@/stores/app'
 import { useCatStore } from '@/stores/cat'
 import { getCursorMonitor } from '@/utils/monitor'
+import { isMac } from '@/utils/platform'
 
 export type WindowState = Record<string, Partial<PhysicalPosition & PhysicalSize> | undefined>
 
@@ -39,7 +40,13 @@ export function useWindowState() {
 
     const windowSize = await appWindow.outerSize()
     const windowPos = await appWindow.outerPosition()
-    let monitor = isMainWindow ? await getCursorMonitor() : undefined
+    // macOS cursor coordinates can be reported using the primary display scale,
+    // so use the window's native monitor when displays have different DPIs.
+    let monitor = isMainWindow
+      ? isMac
+        ? await currentMonitor()
+        : await getCursorMonitor()
+      : undefined
 
     if (isStockPanel) {
       const monitors = await availableMonitors()

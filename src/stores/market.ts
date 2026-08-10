@@ -21,9 +21,14 @@ export interface MarketStore {
   bearerToken: string
 }
 
-const DEFAULT_BASE_URL = 'https://127.0.0.1:8443'
+export const DEFAULT_BASE_URL = 'https://127.0.0.1:8443'
 
-function normalizeBaseUrl(value: string) {
+/**
+ * Only an empty or non-HTTP(S) value falls back to the default. A value that
+ * merely fails to parse is kept verbatim, so a half-typed or mistyped address
+ * stays on screen instead of being silently replaced.
+ */
+export function normalizeBaseUrl(value: string) {
   const trimmed = value.trim().replace(/\/+$/, '')
   if (!trimmed) return DEFAULT_BASE_URL
 
@@ -32,7 +37,7 @@ function normalizeBaseUrl(value: string) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return DEFAULT_BASE_URL
     return trimmed
   } catch {
-    return DEFAULT_BASE_URL
+    return trimmed
   }
 }
 

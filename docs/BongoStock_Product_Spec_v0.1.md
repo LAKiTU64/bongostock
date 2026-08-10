@@ -11,7 +11,7 @@ date: 2026-08-10
 
 BongoStock 是一个 Windows/macOS 桌面宠物：它累计键盘与鼠标操作次数，并在用户主动点击桌宠后展示紧凑的行情/资讯浮窗。桌宠状态下不展示证券信息，行情详情和资讯均按需加载。
 
-当前源码公开于 <https://github.com/LAKiTU64/bongostock>，版本 `1.0.0`。Windows x64 安装包通过 GitHub Release 发布；当前尚未提供代码签名、公证或自动更新。
+当前源码公开于 <https://github.com/LAKiTU64/bongostock>，版本 `1.0.0`。Windows x64 安装包已通过 [GitHub Release v1.0.0](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.0) 发布，Apple Silicon DMG 本地构建已验证；当前尚未提供代码签名、公证或自动更新。
 
 ## 2. 产品原则
 
@@ -160,9 +160,9 @@ BongoStock 是一个 Windows/macOS 桌面宠物：它累计键盘与鼠标操作
 
 ## 10. 平台与交付
 
-Windows 开发和 debug 构建已经验证；打包配置包含 NSIS。macOS 配置包含 DMG，但仍需真机做输入权限、透明窗口、托盘、置顶、穿透、模型渲染和签名/公证回归。
+Windows 开发、debug 构建和 NSIS 安装包已经验证。Apple Silicon DMG 本地构建已经验证；macOS 仍需真机完成输入权限、透明窗口、托盘、置顶、穿透和模型渲染回归，对外分发还需要签名与公证。
 
-当前不把“能在本地生成包”等同于“可公开分发”。正式发布前至少需要：
+当前 Windows x64 安装包已经发布，但尚未签名。继续扩大分发范围或发布 macOS 安装包前至少需要：
 
 - 双平台完整回归；
 - 素材、依赖和许可证审计；

@@ -1,6 +1,13 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { error as logError, info as logInfo } from '@tauri-apps/plugin-log'
 import { isNil } from 'es-toolkit'
+import {
+  checkAccessibilityPermission,
+  checkInputMonitoringPermission,
+  requestAccessibilityPermission,
+  requestInputMonitoringPermission,
+} from 'tauri-plugin-macos-permissions-api'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { useAppStore } from '@/stores/app'
@@ -60,6 +67,10 @@ export function useDevice() {
   const keyPressedAt = new Map<string, number>()
   const keyReleaseTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const MIN_INPUT_FEEDBACK_MS = 48
+  let requestedAccessibility = false
+  let requestedInputMonitoring = false
+  let listeningRequested = false
+  let unlistenFocus: (() => void) | undefined
 
   watch(() => catStore.window.hideOnHover, (enabled) => {
     void invoke(INVOKE_KEY.SET_MOUSE_MOVE_ENABLED, { enabled })
@@ -69,6 +80,7 @@ export function useDevice() {
     keyReleaseTimers.forEach(timer => clearTimeout(timer))
     keyReleaseTimers.clear()
     keyPressedAt.clear()
+    unlistenFocus?.()
   })
 
   onMounted(async () => {
@@ -79,10 +91,67 @@ export function useDevice() {
 
       scaleFactor.value = payload.scaleFactor
     })
+
+    if (isMac) {
+      unlistenFocus = await appWindow.onFocusChanged(({ payload: focused }) => {
+        if (focused) void ensureDeviceListening(true)
+      })
+    }
   })
 
+  async function ensureDeviceListening(openSettings: boolean) {
+    if (listeningRequested) return
+
+    const [accessibilityAuthorized, inputMonitoringAuthorized] = isMac
+      ? await Promise.all([
+          checkAccessibilityPermission(),
+          checkInputMonitoringPermission(),
+        ])
+      : [true, true]
+
+    if (isMac) {
+      await logInfo(
+        `[device] Accessibility authorized: ${accessibilityAuthorized}; Input Monitoring authorized: ${inputMonitoringAuthorized}`,
+      )
+    }
+
+    if (!accessibilityAuthorized || !inputMonitoringAuthorized) {
+      // Both are requested, not just the first missing one: Input Monitoring
+      // only appears in the Privacy list once the app has actually asked for it.
+      if (openSettings && !inputMonitoringAuthorized && !requestedInputMonitoring) {
+        requestedInputMonitoring = true
+
+        const granted = await invoke<boolean>(INVOKE_KEY.REQUEST_INPUT_MONITORING_ACCESS)
+
+        await logInfo(`[device] Input Monitoring access request granted: ${granted}`)
+
+        if (!granted) await requestInputMonitoringPermission()
+      }
+
+      if (openSettings && !accessibilityAuthorized && !requestedAccessibility) {
+        requestedAccessibility = true
+
+        await requestAccessibilityPermission()
+      }
+
+      return
+    }
+
+    requestedAccessibility = false
+    requestedInputMonitoring = false
+    listeningRequested = true
+
+    try {
+      await logInfo('[device] Starting native input listener')
+      await invoke(INVOKE_KEY.START_DEVICE_LISTENING)
+    } catch (error) {
+      listeningRequested = false
+      await logError(`[device] Failed to start input listener: ${String(error)}`)
+    }
+  }
+
   const startListening = () => {
-    invoke(INVOKE_KEY.START_DEVICE_LISTENING)
+    void ensureDeviceListening(true)
   }
 
   const onHideOnHover = (() => {

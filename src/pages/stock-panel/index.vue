@@ -44,6 +44,8 @@ const newsLoading = ref(false)
 const initialNewsSecurityCode = ref('')
 const newsRefreshToken = ref(0)
 let idleFadeTimer: ReturnType<typeof setTimeout> | undefined
+let autoRefreshTimer: ReturnType<typeof setTimeout> | undefined
+let autoRefreshToken = 0
 let detailAbortController: AbortController | undefined
 let detailRequestId = 0
 let quoteRequestId = 0
@@ -68,6 +70,18 @@ const CHART_PADDING_X = 4
 const CHART_PADDING_Y = 5
 const STOCK_PANEL_WIDTH = 296
 const STOCK_PANEL_HEIGHT = 225
+const MORNING_OPEN_MINUTES = 9 * 60 + 30
+const MORNING_CLOSE_MINUTES = 11 * 60 + 30
+const AFTERNOON_OPEN_MINUTES = 13 * 60
+const AFTERNOON_CLOSE_MINUTES = 15 * 60
+const MORNING_SESSION_MINUTES = MORNING_CLOSE_MINUTES - MORNING_OPEN_MINUTES
+const SESSION_MINUTES = MORNING_SESSION_MINUTES + (AFTERNOON_CLOSE_MINUTES - AFTERNOON_OPEN_MINUTES)
+// Level-1 快照约每 3 秒一笔，详情页对齐该节奏；列表页整组扫一眼，5 秒足够。
+const QUOTE_REFRESH_MS = 5_000
+const DETAIL_REFRESH_MS = 3_000
+const REFRESH_JITTER_RATIO = 0.1
+// 收盘后多留一分钟，等最后一笔快照落地。
+const SESSION_TAIL_MINUTES = 1
 
 type DetailMode = 'intraday' | 'five-day' | 'day-k'
 interface ChartHoverState {
@@ -175,6 +189,7 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, async ({ payload }) => {
   resetIdleFade()
   await showWindow(undefined, targetPosition)
   void refreshQuotes()
+  startAutoRefresh()
 })
 
 useTauriListen<StockPanelCloseReason>(LISTEN_KEY.CLOSE_STOCK_PANEL, ({ payload }) => {
@@ -213,6 +228,9 @@ useEventListener('keydown', (event) => {
 })
 
 onMounted(async () => {
+  // A newly created hidden panel cannot receive the initial show event until
+  // Vue has mounted its listeners. Signal readiness from the webview itself.
+  await showWindow(WINDOW_LABEL.STOCK_PANEL)
   resetIdleFade()
   unlistenFocus = await appWindow.onFocusChanged(async ({ payload: focused }) => {
     if (focused || isPinned.value || closeInProgress || !await appWindow.isVisible()) return
@@ -226,13 +244,22 @@ onMounted(async () => {
     if (!mainFocused && !panelFocused && !isPinned.value) void closePanel(true)
   })
 
-  if (await appWindow.isVisible()) void refreshQuotes()
+  if (await appWindow.isVisible()) {
+    void refreshQuotes()
+    startAutoRefresh()
+  }
 })
 
 onUnmounted(() => {
   clearTimeout(idleFadeTimer)
+  stopAutoRefresh()
   detailAbortController?.abort()
   unlistenFocus?.()
+})
+
+// 列表页与详情页节奏不同，切换后立即按新节奏重排下一次刷新。
+watch([selectedQuote, panelMode], () => {
+  if (autoRefreshTimer) startAutoRefresh()
 })
 
 function resetIdleFade() {
@@ -241,6 +268,68 @@ function resetIdleFade() {
   idleFadeTimer = setTimeout(() => {
     isDimmed.value = true
   }, watchlistStore.panel.fadeDelaySeconds * 1000)
+}
+
+/**
+ * Auto refresh only runs while the panel is on screen, and only for what the
+ * user is actually looking at: the open group's quotes, or the open stock's
+ * detail — never both. A closed panel polls nothing.
+ */
+function startAutoRefresh() {
+  stopAutoRefresh()
+  scheduleAutoRefresh(autoRefreshToken)
+}
+
+function stopAutoRefresh() {
+  autoRefreshToken += 1
+  clearTimeout(autoRefreshTimer)
+  autoRefreshTimer = undefined
+}
+
+function scheduleAutoRefresh(token: number) {
+  const interval = selectedQuote.value ? DETAIL_REFRESH_MS : QUOTE_REFRESH_MS
+  // 抖动避免固定节拍撞上游限流窗口。
+  const spread = interval * REFRESH_JITTER_RATIO
+  const delay = Math.round(interval - spread + Math.random() * spread * 2)
+
+  autoRefreshTimer = setTimeout(async () => {
+    if (token !== autoRefreshToken) return
+
+    await runAutoRefresh()
+
+    if (token !== autoRefreshToken) return
+
+    scheduleAutoRefresh(token)
+  }, delay)
+}
+
+async function runAutoRefresh() {
+  if (panelMode.value !== 'market' || !isTradingSession()) return
+  if (!await appWindow.isVisible()) return
+
+  const quote = selectedQuote.value
+
+  if (!quote) {
+    await refreshQuotes(true)
+    return
+  }
+
+  if (!detailLoading.value) await refreshDetailInPlace(quote)
+}
+
+/**
+ * Weekday session hours only. Exchange holidays are not modelled: on those
+ * days the upstream simply returns an unchanged snapshot.
+ */
+function isTradingSession(now = new Date()) {
+  const weekday = now.getDay()
+
+  if (weekday === 0 || weekday === 6) return false
+
+  const minutes = now.getHours() * 60 + now.getMinutes()
+
+  return (minutes >= MORNING_OPEN_MINUTES && minutes <= MORNING_CLOSE_MINUTES + SESSION_TAIL_MINUTES)
+    || (minutes >= AFTERNOON_OPEN_MINUTES && minutes <= AFTERNOON_CLOSE_MINUTES + SESSION_TAIL_MINUTES)
 }
 
 function handleDragPointerDown(event: PointerEvent) {
@@ -275,7 +364,12 @@ function startPanelDragging(event: PointerEvent) {
   void appWindow.startDragging()
 }
 
-async function refreshQuotes() {
+/**
+ * A silent refresh is driven by the timer, not the user: it must not show a
+ * spinner, must not reset the idle fade timer (that would keep the panel awake
+ * forever), and must keep the last good quotes on a transient failure.
+ */
+async function refreshQuotes(silent = false) {
   const requestId = ++quoteRequestId
   const activeCodes = activeGroup.value?.codes ?? []
 
@@ -285,9 +379,11 @@ async function refreshQuotes() {
     return
   }
 
-  loading.value = true
-  errorMessage.value = ''
-  resetIdleFade()
+  if (!silent) {
+    loading.value = true
+    errorMessage.value = ''
+    resetIdleFade()
+  }
 
   try {
     const nextQuotes = await fetchQuotes(activeCodes)
@@ -295,12 +391,53 @@ async function refreshQuotes() {
     if (requestId !== quoteRequestId) return
 
     quotes.value = nextQuotes
+    errorMessage.value = ''
   } catch (error) {
-    if (requestId !== quoteRequestId) return
+    if (requestId !== quoteRequestId || silent) return
 
     errorMessage.value = `行情不可用：${error instanceof Error ? error.message : String(error)}`
   } finally {
-    if (requestId === quoteRequestId) loading.value = false
+    if (requestId === quoteRequestId && !silent) loading.value = false
+  }
+}
+
+/**
+ * Refresh only the series the open tab is showing, without clearing it first:
+ * a timer-driven reload must not make the chart blink. Trend results are
+ * cached for 30s, so a silent refresh has to bypass the cache.
+ */
+async function refreshDetailInPlace(quote: StockQuote) {
+  const requestId = detailRequestId
+  const mode = detailMode.value
+  const isStale = () => requestId !== detailRequestId
+    || selectedQuote.value?.code !== quote.code
+    || detailMode.value !== mode
+
+  try {
+    if (mode === 'day-k') {
+      const klines = await fetchDailyKlines(quote.code, 30, true)
+
+      if (isStale()) return
+
+      dailyKlines.value = klines
+      klineError.value = ''
+      return
+    }
+
+    const days = mode === 'intraday' ? 1 : 5
+    const series = await fetchTrendSeries(quote.code, days, undefined, true)
+
+    if (isStale()) return
+
+    if (days === 1) {
+      intradaySeries.value = series
+      intradayError.value = ''
+    } else {
+      trendSeries.value = series
+      trendError.value = ''
+    }
+  } catch {
+    // 静默刷新失败时保留上一次的曲线，不打断正在看盘的用户。
   }
 }
 
@@ -309,9 +446,15 @@ async function refreshIfVisible() {
 }
 
 function selectGroup(id: string) {
+  if (id === activeGroupId.value) return
+
   closeDetail()
   activeGroupId.value = id
   resetIdleFade()
+  // 新分组的代码还没有行情，不立刻拉一次的话整屏都是「等待行情」；
+  // 自动刷新只在交易时段运行，收盘后光等是等不到的。
+  void refreshQuotes()
+  if (autoRefreshTimer) startAutoRefresh()
 }
 
 function handleGroupTabsWheel(event: WheelEvent) {
@@ -417,6 +560,7 @@ async function closePanel(retainState: boolean) {
   if (closeInProgress) return
 
   closeInProgress = true
+  stopAutoRefresh()
   const retentionSeconds = watchlistStore.panel.stateRetentionSeconds
   const shouldRetain = retainState && retentionSeconds > 0
 
@@ -549,7 +693,7 @@ function handleChartPointerMove(event: PointerEvent) {
   }
 
   const points = detailPoints.value
-  const index = chartIndexAt(x, rect.width, points.length, 'nearest')
+  const index = trendIndexAt(x, rect.width)
 
   if (index < 0) {
     clearChartHover()
@@ -589,6 +733,30 @@ function chartIndexAt(x: number, width: number, length: number, mode: 'nearest' 
   if (mode === 'slot') return Math.min(length - 1, Math.floor(ratio * length))
 
   return Math.max(0, Math.min(length - 1, Math.round(ratio * (length - 1))))
+}
+
+/**
+ * Trend points sit on a time axis, so hover has to match against the x each
+ * point was actually drawn at rather than interpolating over the index range.
+ */
+function trendIndexAt(x: number, width: number) {
+  const pointXs = detailChart.value?.pointXs
+
+  if (!pointXs?.length || width <= 0) return -1
+
+  const viewX = x / width * CHART_WIDTH
+
+  if (viewX < CHART_PADDING_X || viewX > CHART_WIDTH - CHART_PADDING_X) return -1
+
+  let nearest = 0
+
+  for (let index = 1; index < pointXs.length; index += 1) {
+    if (Math.abs(pointXs[index]! - viewX) >= Math.abs(pointXs[nearest]! - viewX)) continue
+
+    nearest = index
+  }
+
+  return nearest
 }
 
 function clearChartHover() {
@@ -644,6 +812,31 @@ function isAbortError(error: unknown) {
   return (error instanceof DOMException || error instanceof Error) && error.name === 'AbortError'
 }
 
+/**
+ * Minutes elapsed within an A-share session, 0 at 09:30 and 240 at 15:00.
+ * The 11:30–13:00 break collapses onto a single position, which is where a
+ * session divider belongs.
+ */
+function sessionMinuteOffset(time: string) {
+  const [hour, minute] = time.split(':').map(Number)
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0
+
+  const minutes = hour * 60 + minute
+
+  if (minutes <= MORNING_OPEN_MINUTES) return 0
+  if (minutes <= MORNING_CLOSE_MINUTES) return minutes - MORNING_OPEN_MINUTES
+  if (minutes < AFTERNOON_OPEN_MINUTES) return MORNING_SESSION_MINUTES
+  if (minutes >= AFTERNOON_CLOSE_MINUTES) return SESSION_MINUTES
+
+  return MORNING_SESSION_MINUTES + (minutes - AFTERNOON_OPEN_MINUTES)
+}
+
+/**
+ * The x axis is a clock, not a list of samples. Positioning by array index
+ * would stretch a partial session across the full width, so a chart opened at
+ * 14:18 would draw a line all the way to the 15:00 edge.
+ */
 function buildTrendChart(points: IntradayPoint[], mode: DetailMode) {
   if (points.length === 0) return undefined
 
@@ -653,20 +846,21 @@ function buildTrendChart(points: IntradayPoint[], mode: DetailMode) {
   const range = max - min || Math.max(Math.abs(max) * 0.01, 0.01)
   const innerWidth = CHART_WIDTH - CHART_PADDING_X * 2
   const innerHeight = CHART_HEIGHT - CHART_PADDING_Y * 2
-  const toX = (index: number) => points.length <= 1
-    ? CHART_WIDTH / 2
-    : CHART_PADDING_X + index / (points.length - 1) * innerWidth
+  const dates = [...new Set(points.map(point => point.date))]
+  const dayIndexByDate = new Map(dates.map((date, index) => [date, index]))
+  const totalMinutes = Math.max(dates.length, 1) * SESSION_MINUTES
+  const minuteToX = (dayIndex: number, offset: number) =>
+    CHART_PADDING_X + (dayIndex * SESSION_MINUTES + offset) / totalMinutes * innerWidth
+  const toX = (point: IntradayPoint) =>
+    minuteToX(dayIndexByDate.get(point.date) ?? 0, sessionMinuteOffset(point.time))
   const toY = (value: number) => CHART_PADDING_Y + (max - value) / range * innerHeight
+  const pointXs = points.map(toX)
   const buildPath = (selector: (point: IntradayPoint) => number) => points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${toX(index).toFixed(2)} ${toY(selector(point)).toFixed(2)}`)
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${pointXs[index]!.toFixed(2)} ${toY(selector(point)).toFixed(2)}`)
     .join(' ')
 
-  const morningEndIndex = points.findLastIndex(point => point.time <= '11:30')
-  const afternoonStartIndex = points.findIndex(point => point.time >= '13:00')
   const sessionDividerX = mode === 'intraday'
-    && morningEndIndex >= 0
-    && afternoonStartIndex > morningEndIndex
-    ? toX((morningEndIndex + afternoonStartIndex) / 2)
+    ? minuteToX(0, MORNING_SESSION_MINUTES)
     : undefined
   const dividerX = sessionDividerX ?? CHART_WIDTH / 2
   const timeLabels = mode === 'intraday'
@@ -685,6 +879,7 @@ function buildTrendChart(points: IntradayPoint[], mode: DetailMode) {
     max,
     firstDate: points[0]?.date ?? '',
     lastDate: points.at(-1)?.date ?? '',
+    pointXs,
     sessionDividerX,
     timeLabels,
   }

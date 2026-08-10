@@ -460,7 +460,7 @@ onUnmounted(() => {
   place-items: center;
   color: #171717;
   font-family: 'SFMono-Regular', Menlo, Monaco, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
-  font-size: calc(11px * var(--pet-scale, 1));
+  font-size: var(--counter-font-size, calc(11px * var(--pet-scale, 1)));
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   letter-spacing: calc(0.15px * var(--pet-scale, 1));

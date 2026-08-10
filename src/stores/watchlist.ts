@@ -83,11 +83,17 @@ function sanitizeGroups(values: readonly WatchlistGroup[]) {
 
     seenIds.add(id)
 
+    const groupCodes = new Set<string>()
+
     for (const rawCode of value.codes ?? []) {
       const code = normalizeCode(rawCode)
 
-      if (!isValidCode(code) || seenCodes.has(code) || seenCodes.size >= MAX_WATCHLIST_SIZE) continue
+      // 同一只证券可以分在多个分组，但同一分组内不重复。
+      if (!isValidCode(code) || groupCodes.has(code)) continue
+      // 上限按去重后的证券数计算：一只股票加进三个分组仍然只占一个名额。
+      if (!seenCodes.has(code) && seenCodes.size >= MAX_WATCHLIST_SIZE) continue
 
+      groupCodes.add(code)
       seenCodes.add(code)
       codes.push(code)
     }
@@ -113,8 +119,9 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   })
   const totalCodes = computed(() => codes.value.length)
 
+  // 去重后的证券集合：同一只证券分在多个分组时只请求一次，也只占一个名额。
   function syncCodes() {
-    codes.value = groups.value.flatMap(group => group.codes)
+    codes.value = [...new Set(groups.value.flatMap(group => group.codes))]
   }
 
   function setGroups(values: readonly WatchlistGroup[], notify = true) {
@@ -176,10 +183,13 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   function addCode(value: string, groupId: string) {
     const code = normalizeCode(value)
 
+    const targetGroup = groups.value.find(group => group.id === groupId)
+
     if (!isValidCode(code)) return '请输入 6 位代码，或 SH600036 / SZ000858'
-    if (!groups.value.some(group => group.id === groupId)) return '请选择一个分组'
-    if (codes.value.includes(code)) return '这个代码已经在其他分组中'
-    if (codes.value.length >= MAX_WATCHLIST_SIZE) return `自选列表最多保存 ${MAX_WATCHLIST_SIZE} 只股票或基金`
+    if (!targetGroup) return '请选择一个分组'
+    if (targetGroup.codes.includes(code)) return '这个代码已经在当前分组中'
+    if (!codes.value.includes(code) && codes.value.length >= MAX_WATCHLIST_SIZE)
+      return `自选列表最多保存 ${MAX_WATCHLIST_SIZE} 只股票或基金`
 
     setGroups(groups.value.map(group => group.id === groupId
       ? { ...group, codes: [...group.codes, code] }

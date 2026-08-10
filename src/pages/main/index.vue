@@ -14,7 +14,7 @@ import { hideWindow, setAlwaysOnTop, setTaskbarVisibility, showWindow } from '@/
 import { useCatStore } from '@/stores/cat'
 import { useGeneralStore } from '@/stores/general.ts'
 import { useSkinStore } from '@/stores/skin'
-import { isWindows } from '@/utils/platform'
+import { isMac, isWindows } from '@/utils/platform'
 
 const { mouseLeftDown, mouseRightDown, pressedKeys, startListening } = useDevice()
 const appWindow = getCurrentWebviewWindow()
@@ -32,6 +32,9 @@ const COMPACT_VISIBLE_HEIGHT = 106
 const BUILTIN_VISIBLE_HEIGHT = 137
 const displayScaleFactor = ref(globalThis.devicePixelRatio)
 const compactScale = computed(() => catStore.window.scale / 100)
+// macOS LogicalSize and CSS pixels already account for the target display DPI.
+// Keep the existing physical-pixel sizing behavior on Windows and Linux.
+const compactLayoutScaleFactor = computed(() => isMac ? 1 : displayScaleFactor.value)
 const selectedSkin = computed(() => skinStore.resolveId(catStore.skin))
 const importedSkin = computed(() => skinStore.find(selectedSkin.value))
 const builtinSkin = computed(() => skinStore.findBuiltin(selectedSkin.value))
@@ -40,10 +43,11 @@ const compactContentHeight = computed(() => builtinSkin.value ? BUILTIN_VISIBLE_
 const compactPetStyle = computed(() => ({
   '--pet-scale': compactScale.value,
   '--pet-radius': `${catStore.window.radius}%`,
-  'left': `${COMPACT_LEFT_GUTTER * compactScale.value / displayScaleFactor.value}px`,
+  '--counter-font-size': `${(isMac ? 13 : 11) * compactScale.value}px`,
+  'left': `${COMPACT_LEFT_GUTTER * compactScale.value / compactLayoutScaleFactor.value}px`,
   'top': '0px',
-  'width': `${compactContentWidth.value * compactScale.value / displayScaleFactor.value}px`,
-  'height': `${compactContentHeight.value * compactScale.value / displayScaleFactor.value}px`,
+  'width': `${compactContentWidth.value * compactScale.value / compactLayoutScaleFactor.value}px`,
+  'height': `${compactContentHeight.value * compactScale.value / compactLayoutScaleFactor.value}px`,
 }))
 let leftPulseTimer: ReturnType<typeof setTimeout> | undefined
 let rightPulseTimer: ReturnType<typeof setTimeout> | undefined
@@ -82,8 +86,8 @@ onUnmounted(() => {
 
 onMounted(async () => {
   await setCompactWindowSize()
-  await appWindow.onScaleChanged(async () => {
-    displayScaleFactor.value = globalThis.devicePixelRatio
+  await appWindow.onScaleChanged(async ({ payload }) => {
+    displayScaleFactor.value = isMac ? payload.scaleFactor : globalThis.devicePixelRatio
     await setCompactWindowSize()
   })
 
@@ -172,11 +176,11 @@ function handlePetClick() {
 }
 
 async function setCompactWindowSize() {
-  displayScaleFactor.value = globalThis.devicePixelRatio
+  if (!isMac) displayScaleFactor.value = globalThis.devicePixelRatio
 
   await appWindow.setSize(new LogicalSize({
-    width: (compactContentWidth.value + COMPACT_LEFT_GUTTER) * compactScale.value / displayScaleFactor.value,
-    height: (compactContentHeight.value + 1) * compactScale.value / displayScaleFactor.value,
+    width: (compactContentWidth.value + COMPACT_LEFT_GUTTER) * compactScale.value / compactLayoutScaleFactor.value,
+    height: (compactContentHeight.value + 1) * compactScale.value / compactLayoutScaleFactor.value,
   }))
 }
 

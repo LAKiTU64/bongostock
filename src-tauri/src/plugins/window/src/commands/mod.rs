@@ -95,6 +95,7 @@ fn ensure_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) -> Result<(
         .on_page_load(move |_window: WebviewWindow<R>, payload| {
             if payload.event() == PageLoadEvent::Finished
                 && first_page_load.swap(false, Ordering::Relaxed)
+                && ready_label != STOCK_PANEL_WINDOW_LABEL
             {
                 reveal_window(&ready_app_handle, &ready_label);
             }

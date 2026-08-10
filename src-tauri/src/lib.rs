@@ -2,7 +2,7 @@ mod core;
 mod utils;
 
 use core::{
-    device::{set_mouse_move_enabled, start_device_listening},
+    device::{request_input_monitoring_access, set_mouse_move_enabled, start_device_listening},
     gamepad::{start_gamepad_listing, stop_gamepad_listing},
     prevent_default, setup,
 };
@@ -45,6 +45,7 @@ pub fn run() {
             list_imported_skins,
             delete_imported_skin,
             start_device_listening,
+            request_input_monitoring_access,
             set_mouse_move_enabled,
             start_gamepad_listing,
             stop_gamepad_listing,

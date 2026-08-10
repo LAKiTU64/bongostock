@@ -2,11 +2,12 @@
 
 BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键盘按下和鼠标点击次数、响应输入动作，并在用户主动点击桌宠时打开行情/资讯浮窗。
 
-- 当前版本：`1.0.0`
-- 当前阶段：首个正式版本；资讯中心 Phase 0～6 已实现
+- 当前版本：`1.0.1`
+- 当前阶段：`1.0.1` 为 macOS 修复版，尚未发布；资讯中心 Phase 0～6 已实现
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
-- 软件包状态：Windows x64 安装包通过 GitHub Release 发布；当前构建未进行代码签名
+- 软件包状态：Windows x64 安装包已通过 [GitHub Release v1.0.0](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.0) 发布；`1.0.1` 的 Apple Silicon DMG 已在本机构建验证，尚未发布；当前构建未进行代码签名
+- 变更记录：见 [CHANGELOG.md](CHANGELOG.md)
 
 ## 当前功能
 
@@ -39,7 +40,7 @@ BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键
 - 首次打开或临时状态回收后按桌宠当前位置重新定位，优先显示在下方，空间不足时显示在上方；
 - 浮窗顶栏提供专用拖拽手柄；点击外部区域关闭后默认保留状态和拖拽位置30秒，期间切换行情/资讯或重新打开不会改变位置；保留时间可在行情设置中调整，`Esc` 始终可以关闭并清除临时状态；
 - 常驻按钮只对当前一次打开有效；
-- 最多 8 个分组，全部分组合计最多 50 只沪深股票、指数或场内基金；
+- 最多 8 个分组，全部分组合计最多 50 只沪深股票、指数或场内基金；同一只证券可以同时加入多个分组，按去重后的数量计入上限；
 - 列表采用紧凑双栏布局；
 - 支持 `SH600036`、`SZ000858` 和 6 位纯数字代码；
 - 纯数字代码按沪深规则补齐交易所，并在线匹配证券名称；
@@ -116,7 +117,7 @@ pnpm tauri dev
 
 ### Windows
 
-需要 WebView2、Microsoft C++ Build Tools 和 `stable-x86_64-pc-windows-msvc`。生成 NSIS `.exe` 安装包的配置已经存在，但当前没有发布安装包：
+需要 WebView2、Microsoft C++ Build Tools 和 `stable-x86_64-pc-windows-msvc`。`v1.0.0` 的 Windows x64 NSIS 安装包已通过 GitHub Release 发布；本地构建命令为：
 
 ```powershell
 pnpm tauri build --bundles nsis
@@ -124,11 +125,19 @@ pnpm tauri build --bundles nsis
 
 ### macOS
 
-需要 Apple Command Line Tools；捕获全局输入需要 Input Monitoring 权限。DMG 必须在 macOS 上构建：
+需要 Apple Command Line Tools；捕获全局输入需要「输入监控」和「辅助功能」两项权限。Apple Silicon DMG 本地构建已经验证，DMG 必须在 macOS 上构建：
 
 ```bash
 pnpm tauri build --bundles dmg
 ```
+
+调试构建请使用：
+
+```bash
+pnpm mac:build-debug
+```
+
+它在打包后为 `.app` 附加固定的 ad-hoc 签名身份。未签名构建的 designated requirement 是每次编译都变化的 cdhash，macOS 会把它当成另一个程序，导致每次重新构建都要重新授权「输入监控」和「辅助功能」。
 
 对外分发仍需 Apple Developer 签名与公证。
 
@@ -167,4 +176,4 @@ pnpm run audit:release
 - 自动交易或券商账户操作；
 - 后台行情轮询和交易日服务；
 - 周 K、月 K、提醒、AI 分析或 MCP；
-- 自动更新、代码签名、公证和正式二进制发布。
+- 自动更新、代码签名、macOS 公证以及 macOS/Linux 正式安装包发布。

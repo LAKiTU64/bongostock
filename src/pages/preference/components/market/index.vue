@@ -10,7 +10,7 @@ import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
 import { LISTEN_KEY } from '@/constants'
 import { fetchQuotes, searchSecurityCandidates, testExternalMarketConnection } from '@/market/marketService'
-import { useMarketStore } from '@/stores/market'
+import { normalizeBaseUrl, useMarketStore } from '@/stores/market'
 import {
   MAX_DIMMED_OPACITY,
   MAX_FADE_DELAY_SECONDS,
@@ -54,13 +54,25 @@ const marketSource = computed({
     emitMarketSettings()
   },
 })
-const externalBaseUrl = computed({
-  get: () => marketStore.external.baseUrl,
-  set: (value) => {
-    marketStore.external.baseUrl = value
-    emitMarketSettings()
-  },
+// Edited as a local draft: writing to the store on every keystroke broadcasts a
+// settings event that this same window receives and normalizes, which would
+// rewrite the field mid-edit. The draft is committed on blur or Enter instead.
+const baseUrlDraft = ref(marketStore.external.baseUrl)
+
+watch(() => marketStore.external.baseUrl, (value) => {
+  if (value !== baseUrlDraft.value) baseUrlDraft.value = value
 })
+
+function commitBaseUrl() {
+  const normalized = normalizeBaseUrl(baseUrlDraft.value)
+
+  baseUrlDraft.value = normalized
+
+  if (normalized === marketStore.external.baseUrl) return
+
+  marketStore.external.baseUrl = normalized
+  emitMarketSettings()
+}
 const externalTimeout = computed({
   get: () => marketStore.external.timeoutMs,
   set: (value) => {
@@ -70,7 +82,7 @@ const externalTimeout = computed({
 })
 const isTestingConnection = ref(false)
 const connectionMessage = ref('')
-const externalUsesHttp = computed(() => externalBaseUrl.value.trim().toLowerCase().startsWith('http://'))
+const externalUsesHttp = computed(() => baseUrlDraft.value.trim().toLowerCase().startsWith('http://'))
 let quoteNameRequestId = 0
 
 watch(groups, (values) => {
@@ -197,6 +209,9 @@ function emitMarketSettings() {
 
 async function testConnection() {
   if (isTestingConnection.value) return
+
+  commitBaseUrl()
+
   isTestingConnection.value = true
   connectionMessage.value = ''
 
@@ -260,9 +275,10 @@ function getQuoteName(code: string) {
         vertical
       >
         <Input
-          v-model:value="externalBaseUrl"
+          v-model:value="baseUrlDraft"
           placeholder="https://example.com"
-          @change="emitMarketSettings"
+          @blur="commitBaseUrl"
+          @press-enter="commitBaseUrl"
         />
         <div
           v-if="externalUsesHttp"

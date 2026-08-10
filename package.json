@@ -1,7 +1,7 @@
 {
   "name": "bongo-stock",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "author": "BongoStock contributors",
   "scripts": {
@@ -9,7 +9,9 @@
     "build": "run-s build:*",
     "dev:vite": "vite",
     "build:vite": "vite build",
+    "mac:build-debug": "tauri build --debug --bundles app && tsx scripts/signMacDebug.ts",
     "audit:release": "node scripts/auditReleaseAssets.mjs",
+    "check:docs": "node scripts/checkDocs.mjs",
     "build:icon": "tsx scripts/buildIcon.ts",
     "preview": "vite preview",
     "tauri": "tauri",

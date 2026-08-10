@@ -1,3 +1,6 @@
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true
+# 平铺安装：本机火绒 HIPS 会拦截 pnpm 创建 junction 符号链接，isolated 布局下
+# node_modules 顶层包会变成空目录。hoisted 不依赖符号链接，各环境通用。
+nodeLinker: hoisted

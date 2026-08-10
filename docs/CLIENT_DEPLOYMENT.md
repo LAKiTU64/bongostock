@@ -1,13 +1,13 @@
 # BongoStock 客户端部署
 
-本文说明如何在 Windows 和 macOS 上从源码运行、验证并构建 BongoStock 客户端。当前仓库尚未提供签名安装包或 GitHub Release；个人测试建议先使用 `tauri dev`，确认功能后再生成本机安装产物。
+本文说明如何在 Windows 和 macOS 上从源码运行、验证并构建 BongoStock 客户端。`v1.0.0` Windows x64 安装包已通过 [GitHub Release](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.0) 发布，但尚未进行代码签名；`1.0.1` 的 Apple Silicon DMG 已在本机构建验证但尚未发布，macOS 当前仍以本机安装和运行测试为主。
 
 ## 1. 支持范围
 
 | 平台 | 当前状态 | 构建产物 | 额外要求 |
 | --- | --- | --- | --- |
 | Windows 10/11 x64 | 已在 Windows 11 x64 实机开发和回归 | NSIS `.exe` | WebView2、MSVC Build Tools、Windows SDK |
-| macOS Apple Silicon / Intel | 代码和 Tauri 配置已适配，仍需 Mac 真机回归 | `.app`、`.dmg` | Apple Command Line Tools、Input Monitoring 权限 |
+| macOS Apple Silicon / Intel | Apple Silicon DMG 本地构建已验证，Intel 构建和完整真机回归待完成 | `.app`、`.dmg` | Apple Command Line Tools、Input Monitoring 权限 |
 
 默认构建当前机器的 CPU 架构。Intel Mac 生成 `x86_64`，Apple Silicon 生成 `aarch64`；通用二进制见本文第 5 节。
 
@@ -118,15 +118,46 @@ rustup default stable
 pnpm tauri dev
 ```
 
-第一次运行后进入：
+第一次运行时应用会主动申请「输入监控」权限，系统弹出授权提示；同时还需要「辅助功能」：
 
 ```text
 系统设置 → 隐私与安全性 → 输入监控
+系统设置 → 隐私与安全性 → 辅助功能
 ```
 
-允许 BongoStock 或当前开发终端捕获输入，然后完全退出并重新启动应用。没有此权限时，窗口和行情仍可显示，但全局按键/鼠标计数可能不工作。
+两项都授权后完全退出并重新启动应用。缺少任一权限时，窗口和行情仍可显示，但全局按键/鼠标计数不工作。
 
-### 4.3 构建 `.app` 和 `.dmg`
+应用日志会打印实际读取到的授权状态，排查时以日志为准，不要以系统设置里的开关外观为准：
+
+```bash
+grep -E "\[device\]|IOHIDRequestAccess" ~/Library/Logs/com.bongostock.desktop/BongoStock.log | tail -15
+```
+
+### 4.3 调试构建与 macOS 签名身份
+
+```bash
+pnpm mac:build-debug
+```
+
+该脚本在 `tauri build --debug` 之后执行 `scripts/signMacDebug.ts`，为 `.app` 附加固定的 ad-hoc 签名身份：identifier 为 `com.bongostock.desktop`，designated requirement 锁定该 identifier。
+
+不这样做的话，未签名构建的 designated requirement 是每次编译都变化的 cdhash。macOS 的 TCC 按 designated requirement 识别应用，因此每次重新构建都会被当成一个全新程序：系统设置里旧的开关看似仍处于开启状态，实际对新构建无效，应用读到的授权状态始终为 `false`。发布用的 `.app` 同样需要稳定的签名身份，正式分发时应改用 Apple Developer ID 签名。
+
+打包完成后请删除中间产物 `.app`，只保留 `.dmg`：
+
+```bash
+rm -rf target/release/bundle/macos/BongoStock.app
+```
+
+macOS 的 Launch Services 通过 Spotlight 索引发现应用，磁盘上任何位置的 `.app` 都会进入应用列表。构建产物不删的话，启动器里会同时出现它和 `/Applications` 里的正式版本，两个图标同名同图标，无法分辨。目录级的 `.metadata_never_index` 标记只能阻止新建索引，拦不住已存在目录被重新扫描，因此不要依赖它。同理，任何用于制作 DMG 的临时暂存目录也必须在打包后删除。
+
+排查 TCC 状态错乱时，重置后重新授权：
+
+```bash
+tccutil reset Accessibility com.bongostock.desktop; tccutil reset ListenEvent com.bongostock.desktop
+```
+
+### 4.4 构建 `.app` 和 `.dmg`
 
 ```bash
 pnpm tauri build --bundles app,dmg
@@ -182,6 +213,7 @@ pnpm exec tsc --noEmit
 pnpm exec eslint src
 pnpm run build:vite
 pnpm run audit:release
+pnpm run check:docs
 cargo test --locked
 ```
 
@@ -198,7 +230,7 @@ cargo test --locked
 
 ## 8. 当前交付边界
 
-- Windows 已有实机开发验证，macOS 尚缺持续集成和真机回归；
+- Windows 已有实机开发验证；Apple Silicon DMG 本地构建已验证，macOS 仍缺完整真机回归；
 - 没有自动更新、Windows 代码签名、Apple 签名或公证；
-- NSIS 和 DMG 配置存在，但尚未作为正式 Release 发布；
+- `v1.0.0` Windows x64 NSIS 安装包已经发布；`1.0.1` 与 macOS DMG 尚未作为正式 Release 发布；
 - 设备迁移和私人皮肤边界见 [DEVICE_TRANSFER_CHECKLIST.md](DEVICE_TRANSFER_CHECKLIST.md)。

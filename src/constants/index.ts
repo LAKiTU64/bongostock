@@ -19,6 +19,7 @@ export const LISTEN_KEY = {
 export const INVOKE_KEY = {
   COPY_DIR: 'copy_dir',
   START_DEVICE_LISTENING: 'start_device_listening',
+  REQUEST_INPUT_MONITORING_ACCESS: 'request_input_monitoring_access',
   SET_MOUSE_MOVE_ENABLED: 'set_mouse_move_enabled',
   OPEN_MACOS_ACCESSIBILITY_SETTINGS: 'open_macos_accessibility_settings',
   START_GAMEPAD_LISTING: 'start_gamepad_listing',

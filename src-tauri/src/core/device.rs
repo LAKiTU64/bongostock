@@ -22,21 +22,80 @@ pub struct DeviceEvent {
 
 static IS_LISTENING: AtomicBool = AtomicBool::new(false);
 static MOUSE_MOVE_ENABLED: AtomicBool = AtomicBool::new(false);
+static HAS_RECEIVED_EVENT: AtomicBool = AtomicBool::new(false);
 
 #[command]
 pub fn set_mouse_move_enabled(enabled: bool) {
     MOUSE_MOVE_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+// kIOHIDRequestTypeListenEvent
+#[cfg(target_os = "macos")]
+const IOHID_REQUEST_TYPE_LISTEN_EVENT: u32 = 1;
+
+#[cfg(target_os = "macos")]
+#[link(name = "IOKit", kind = "framework")]
+unsafe extern "C" {
+    fn IOHIDRequestAccess(request_type: u32) -> bool;
+}
+
+/// Ask macOS for Input Monitoring access.
+///
+/// Opening the Privacy pane does not register the app there; only
+/// `IOHIDRequestAccess` adds it to the list and shows the system prompt.
+#[command]
+pub async fn request_input_monitoring_access() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let granted = unsafe { IOHIDRequestAccess(IOHID_REQUEST_TYPE_LISTEN_EVENT) };
+
+        tauri_plugin_log::log::info!(
+            "[device] IOHIDRequestAccess(ListenEvent) returned: {granted}"
+        );
+
+        granted
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    true
+}
+
 #[command]
 pub async fn start_device_listening<R: Runtime>(app_handle: AppHandle<R>) -> Result<(), String> {
-    if IS_LISTENING.load(Ordering::SeqCst) {
+    #[cfg(target_os = "macos")]
+    {
+        let accessibility_authorized =
+            tauri_plugin_macos_permissions::check_accessibility_permission().await;
+        let input_monitoring_authorized =
+            tauri_plugin_macos_permissions::check_input_monitoring_permission().await;
+
+        tauri_plugin_log::log::info!(
+            "[device] Rust Accessibility authorized: {accessibility_authorized}; Input Monitoring authorized: {input_monitoring_authorized}"
+        );
+
+        if !accessibility_authorized || !input_monitoring_authorized {
+            return Err(
+                "macOS Accessibility and Input Monitoring permissions are required".to_string(),
+            );
+        }
+    }
+
+    if IS_LISTENING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        tauri_plugin_log::log::info!("[device] Native input listener already running");
         return Ok(());
     }
 
-    IS_LISTENING.store(true, Ordering::SeqCst);
+    HAS_RECEIVED_EVENT.store(false, Ordering::SeqCst);
+    tauri_plugin_log::log::info!("[device] Entering rdev input listener");
 
     let callback = move |event: Event| {
+        if !HAS_RECEIVED_EVENT.swap(true, Ordering::SeqCst) {
+            tauri_plugin_log::log::info!("[device] Received first native input event");
+        }
+
         let device_event = match event.event_type {
             EventType::ButtonPress(button) => DeviceEvent {
                 kind: DeviceEventKind::MousePress,
@@ -70,7 +129,13 @@ pub async fn start_device_listening<R: Runtime>(app_handle: AppHandle<R>) -> Res
         let _ = app_handle.emit_to(MAIN_WINDOW_LABEL, "device-changed", device_event);
     };
 
-    listen(callback).map_err(|err| format!("Failed to listen device: {:?}", err))?;
+    let result = listen(callback).map_err(|err| format!("Failed to listen device: {:?}", err));
 
-    Ok(())
+    IS_LISTENING.store(false, Ordering::SeqCst);
+
+    if let Err(error) = &result {
+        tauri_plugin_log::log::error!("[device] Native input listener stopped: {error}");
+    }
+
+    result
 }
