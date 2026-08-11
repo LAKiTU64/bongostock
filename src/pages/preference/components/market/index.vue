@@ -47,13 +47,6 @@ const stateRetentionSeconds = computed({
   get: () => watchlistStore.panel.stateRetentionSeconds,
   set: value => updatePanelSettings({ stateRetentionSeconds: value }),
 })
-const marketSource = computed({
-  get: () => marketStore.source,
-  set: (value) => {
-    marketStore.source = value
-    emitMarketSettings()
-  },
-})
 // Edited as a local draft: writing to the store on every keystroke broadcasts a
 // settings event that this same window receives and normalizes, which would
 // rewrite the field mid-edit. The draft is committed on blur or Enter instead.
@@ -92,8 +85,8 @@ watch(groups, (values) => {
 }, { immediate: true })
 
 watch(
-  [() => marketStore.source, () => [...watchlistStore.codes]],
-  ([, codes]) => void loadQuoteNames(codes),
+  () => [...watchlistStore.codes],
+  codes => void loadQuoteNames(codes),
   { immediate: true },
 )
 
@@ -252,89 +245,72 @@ function getQuoteName(code: string) {
 </script>
 
 <template>
-  <ProList title="行情数据源">
+  <ProList title="行情服务">
     <ProListItem
-      description="内置源使用当前 stock-api；外接源只访问下面配置的 BongoStock API v1 地址。"
-      title="数据来源"
+      description="服务端应实现 /v1/capabilities、/v1/quotes、/v1/search、/v1/trends 和 /v1/klines。"
+      title="外接服务地址"
       vertical
     >
-      <Select
-        v-model:value="marketSource"
-        class="w-full"
-        :options="[
-          { label: '内置 stock-api（推荐）', value: 'builtin' },
-          { label: '外接行情服务', value: 'external' },
-        ]"
+      <Input
+        v-model:value="baseUrlDraft"
+        placeholder="https://example.com"
+        @blur="commitBaseUrl"
+        @press-enter="commitBaseUrl"
+      />
+      <div
+        v-if="externalUsesHttp"
+        class="mt-2 text-3 color-[--ant-color-warning]"
+      >
+        当前使用 HTTP：股票代码、请求内容和令牌可能被网络设备看到。建议改用 HTTPS。
+      </div>
+    </ProListItem>
+
+    <ProListItem
+      description="令牌保存在本机应用数据中，重启后会自动恢复。请勿分享或提交包含令牌的配置文件。"
+      title="Bearer Token（可选）"
+    >
+      <Input
+        v-model:value="marketStore.bearerToken"
+        type="password"
+        @change="emitMarketSettings"
       />
     </ProListItem>
 
-    <template v-if="marketSource === 'external'">
-      <ProListItem
-        description="服务端应实现 /v1/capabilities、/v1/quotes、/v1/search、/v1/trends 和 /v1/klines。"
-        title="外接服务地址"
-        vertical
-      >
-        <Input
-          v-model:value="baseUrlDraft"
-          placeholder="https://example.com"
-          @blur="commitBaseUrl"
-          @press-enter="commitBaseUrl"
+    <ProListItem
+      description="外接服务无响应时，超过此时间会结束请求。"
+      title="连接超时"
+    >
+      <SpaceCompact>
+        <InputNumber
+          v-model:value="externalTimeout"
+          class="w-24"
+          :max="30000"
+          :min="1000"
+          :precision="0"
         />
-        <div
-          v-if="externalUsesHttp"
-          class="mt-2 text-3 color-[--ant-color-warning]"
+        <SpaceAddon>毫秒</SpaceAddon>
+      </SpaceCompact>
+    </ProListItem>
+
+    <ProListItem
+      description="只测试 /v1/capabilities，不会请求股票代码。"
+      title="连接测试"
+    >
+      <div class="flex items-center gap-3">
+        <Button
+          :loading="isTestingConnection"
+          @click="testConnection"
         >
-          当前使用 HTTP：股票代码、请求内容和令牌可能被网络设备看到。建议改用 HTTPS。
-        </div>
-      </ProListItem>
-
-      <ProListItem
-        description="令牌保存在本机应用数据中，重启后会自动恢复。请勿分享或提交包含令牌的配置文件。"
-        title="Bearer Token（可选）"
-      >
-        <Input
-          v-model:value="marketStore.bearerToken"
-          type="password"
-          @change="emitMarketSettings"
-        />
-      </ProListItem>
-
-      <ProListItem
-        description="外接服务无响应时，超过此时间会结束请求。"
-        title="连接超时"
-      >
-        <SpaceCompact>
-          <InputNumber
-            v-model:value="externalTimeout"
-            class="w-24"
-            :max="30000"
-            :min="1000"
-            :precision="0"
-          />
-          <SpaceAddon>毫秒</SpaceAddon>
-        </SpaceCompact>
-      </ProListItem>
-
-      <ProListItem
-        description="只测试 /v1/capabilities，不会请求股票代码。"
-        title="连接测试"
-      >
-        <div class="flex items-center gap-3">
-          <Button
-            :loading="isTestingConnection"
-            @click="testConnection"
-          >
-            测试连接
-          </Button>
-          <span
-            v-if="connectionMessage"
-            class="text-3 color-text-secondary"
-          >
-            {{ connectionMessage }}
-          </span>
-        </div>
-      </ProListItem>
-    </template>
+          测试连接
+        </Button>
+        <span
+          v-if="connectionMessage"
+          class="text-3 color-text-secondary"
+        >
+          {{ connectionMessage }}
+        </span>
+      </div>
+    </ProListItem>
   </ProList>
 
   <ProList title="行情浮窗">

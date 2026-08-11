@@ -40,7 +40,7 @@ BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键
 - 首次打开或临时状态回收后按桌宠当前位置重新定位，优先显示在下方，空间不足时显示在上方；
 - 浮窗顶栏提供专用拖拽手柄；点击外部区域关闭后默认保留状态和拖拽位置30秒，期间切换行情/资讯或重新打开不会改变位置；保留时间可在行情设置中调整，`Esc` 始终可以关闭并清除临时状态；
 - 常驻按钮只对当前一次打开有效；
-- 最多 8 个分组，全部分组合计最多 50 只沪深股票、指数或场内基金；同一只证券可以同时加入多个分组，按去重后的数量计入上限；
+- 最多 8 个分组，全部分组合计最多 300 只沪深股票、指数或场内基金；同一只证券可以同时加入多个分组，按去重后的数量计入上限；
 - 列表采用紧凑双栏布局；
 - 支持 `SH600036`、`SZ000858` 和 6 位纯数字代码；
 - 纯数字代码按沪深规则补齐交易所，并在线匹配证券名称；
@@ -52,19 +52,14 @@ BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键
 
 ## 行情数据源
 
-### 内置数据源
+BongoStock 不再内置任何本地行情数据源。报价、搜索、分时/5 日和日 K 全部来自外接的 BongoStock API v1（云端服务）：
 
-- 报价与日 K：精确锁定的 `stock-api@2.7.3`；
-- 分时/5 日：优先请求东方财富公开走势接口，失败后回退腾讯公开接口；
-- 报价每批最多 25 个代码；
-- 分时缓存 30 秒，日 K 缓存 5 分钟；
-- 详细数据只在打开证券详情时加载。
+- 报价：`POST /v1/quotes`，每批最多 25 个代码；
+- 搜索：`POST /v1/search`；
+- 分时/5 日：`POST /v1/trends`；
+- 日 K：`POST /v1/klines`（前复权）。
 
-这些数据只用于个人辅助参考，不能替代券商终端。
-
-### 外接数据源
-
-设置页可切换到 BongoStock API v1，支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时。外接模式不会静默回退内置源；Token 会保存在本机应用数据中并在重启后自动恢复，请勿分享或提交本地配置文件。
+设置页支持 HTTP/HTTPS、Bearer Token 和 1～30 秒超时。Token 会保存在本机应用数据中并在重启后自动恢复，请勿分享或提交本地配置文件。未配置可用服务时，行情功能不可用。
 
 外接服务需要实现：
 
@@ -76,7 +71,9 @@ POST /v1/trends
 POST /v1/klines
 ```
 
-资讯中心额外使用 Gateway 的 `POST /v1/news/search`。资讯配置与行情源选择相互独立：即使行情使用内置源，只要已配置可用的 Gateway 地址和 Bearer Token，资讯仍可通过 Gateway 使用。
+这些数据只用于个人辅助参考，不能替代券商终端。
+
+资讯中心额外使用 Gateway 的 `POST /v1/news/search`。只要已配置可用的 Gateway 地址和 Bearer Token，资讯即可通过 Gateway 使用。
 
 完整请求与响应约定见 [`docs/EXTERNAL_MARKET_API_V1.md`](docs/EXTERNAL_MARKET_API_V1.md)。证券代码放在 POST body 中只能减少 URL/访问日志暴露；HTTP 仍是明文，HTTPS 也不能隐藏外接服务器自身看到的代码。
 
@@ -96,7 +93,6 @@ POST /v1/klines
 - Rust stable
 - Vite
 - PixiJS、easy-live2d
-- stock-api 2.7.3
 
 ## 本地开发
 
@@ -167,7 +163,7 @@ pnpm run audit:release
 
 - 跨平台工程底座来自 [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat)，遵循其 MIT License；
 - 内置模型来源链指向 [MMmmmoko/Bongo-Cat-Mver](https://github.com/MMmmmoko/Bongo-Cat-Mver)，模型索引与包格式参考 [ayangweb/Awesome-BongoCat](https://github.com/ayangweb/Awesome-BongoCat)；
-- 行情模块使用 [zhangxiangliang/stock-api](https://github.com/zhangxiangliang/stock-api) 2.7.3。
+- 行情模块由用户配置的 BongoStock API v1 云端服务提供数据，客户端不内置任何行情数据源。
 
 完整声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 

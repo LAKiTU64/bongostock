@@ -20,7 +20,7 @@ export interface StockPanelSettings {
 
 const CODE_PATTERN = /^(?:SH|SZ)\d{6}$/
 const DEFAULT_GROUP_NAME = '自选股'
-export const MAX_WATCHLIST_SIZE = 50
+export const MAX_WATCHLIST_SIZE = 300
 export const MAX_WATCHLIST_GROUPS = 8
 export const MIN_FADE_DELAY_SECONDS = 1
 export const MAX_FADE_DELAY_SECONDS = 300

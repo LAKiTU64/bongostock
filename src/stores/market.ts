@@ -1,10 +1,7 @@
 import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 
-export type MarketSource = 'builtin' | 'external'
-
 export interface MarketSettingsSnapshot {
-  source: MarketSource
   bearerToken?: string
   external: {
     baseUrl: string
@@ -13,7 +10,6 @@ export interface MarketSettingsSnapshot {
 }
 
 export interface MarketStore {
-  source: MarketSource
   external: {
     baseUrl: string
     timeoutMs: number
@@ -46,7 +42,6 @@ function normalizeTimeout(value: number) {
 }
 
 export const useMarketStore = defineStore('market', () => {
-  const source = ref<MarketSource>('builtin')
   const bearerToken = ref('')
   const external = reactive<MarketStore['external']>({
     baseUrl: DEFAULT_BASE_URL,
@@ -54,14 +49,12 @@ export const useMarketStore = defineStore('market', () => {
   })
 
   function init() {
-    source.value = source.value === 'external' ? 'external' : 'builtin'
     external.baseUrl = normalizeBaseUrl(external.baseUrl)
     external.timeoutMs = normalizeTimeout(external.timeoutMs)
   }
 
   function snapshot(): MarketSettingsSnapshot {
     return {
-      source: source.value,
       bearerToken: bearerToken.value,
       external: {
         baseUrl: external.baseUrl,
@@ -71,14 +64,12 @@ export const useMarketStore = defineStore('market', () => {
   }
 
   function replaceFromEvent(value: MarketSettingsSnapshot) {
-    source.value = value.source === 'external' ? 'external' : 'builtin'
     bearerToken.value = value.bearerToken ?? bearerToken.value
     external.baseUrl = normalizeBaseUrl(value.external?.baseUrl ?? '')
     external.timeoutMs = normalizeTimeout(value.external?.timeoutMs ?? 8_000)
   }
 
   return {
-    source,
     external,
     bearerToken,
     init,

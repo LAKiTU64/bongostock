@@ -18,6 +18,11 @@ work/
 *.key
 *.p12
 *.pfx
+# Machine-specific pnpm settings (e.g. node-linker=hoisted for 火绒 HIPS)
+/.npmrc
+
+# WorkBuddy workspace data
+/.workbuddy/
 
 # Personal/imported skins and source archives
 *.bongoskin
