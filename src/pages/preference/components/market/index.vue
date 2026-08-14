@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { emit } from '@tauri-apps/api/event'
-import { Button, Input, InputNumber, Select, Slider, SpaceAddon, SpaceCompact } from 'antdv-next'
+import { Button, Input, InputNumber, message, Modal, Select, Slider, SpaceAddon, SpaceCompact, Tag } from 'antdv-next'
 import { computed, ref, watch } from 'vue'
 
 import type { SecurityCandidate } from '@/market/marketService'
+import type { WatchlistDiff } from '@/market/watchlistSync'
 import type { WatchlistGroup } from '@/stores/watchlist'
 
 import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
 import { LISTEN_KEY } from '@/constants'
 import { fetchQuotes, searchSecurityCandidates, testExternalMarketConnection } from '@/market/marketService'
+import {
+  diffWatchlist,
+  fetchCloudWatchlist,
+  hasWatchlistDifference,
+  pushWatchlistToCloud,
+
+} from '@/market/watchlistSync'
 import { normalizeBaseUrl, useMarketStore } from '@/stores/market'
 import {
   MAX_DIMMED_OPACITY,
@@ -218,6 +226,70 @@ async function testConnection() {
   }
 }
 
+type SyncDirection = 'pull' | 'push'
+
+const syncOpen = ref(false)
+const syncDirection = ref<SyncDirection>('pull')
+const syncBusy = ref(false)
+const syncDiff = ref<WatchlistDiff | null>(null)
+const syncCloudGroups = ref<WatchlistGroup[]>([])
+
+function syncDirectionLabel(direction: SyncDirection) {
+  return direction === 'pull' ? '从云端拉取' : '推送到云端'
+}
+
+function syncSummary(direction: SyncDirection, diff: WatchlistDiff) {
+  if (direction === 'pull') {
+    return `将用云端数据覆盖本地（本地 ${diff.localGroups} 组 ${diff.localCodes} 只 → 云端 ${diff.cloudGroups} 组 ${diff.cloudCodes} 只）`
+  }
+  return `将用本地数据覆盖云端（云端 ${diff.cloudGroups} 组 ${diff.cloudCodes} 只 → 本地 ${diff.localGroups} 组 ${diff.localCodes} 只）`
+}
+
+async function openSync(direction: SyncDirection) {
+  commitBaseUrl()
+
+  if (!marketStore.external.baseUrl || !marketStore.bearerToken.trim()) {
+    message.warning('请先在上方配置外接服务地址与 Bearer Token')
+    return
+  }
+
+  syncDirection.value = direction
+  syncBusy.value = true
+  syncDiff.value = null
+  syncOpen.value = true
+
+  try {
+    const cloudGroups = await fetchCloudWatchlist()
+    syncCloudGroups.value = cloudGroups
+    syncDiff.value = diffWatchlist(watchlistStore.groups, cloudGroups)
+  } catch (error) {
+    message.error(`读取云端自选失败：${error instanceof Error ? error.message : String(error)}`)
+    syncOpen.value = false
+  } finally {
+    syncBusy.value = false
+  }
+}
+
+async function confirmSync() {
+  if (!syncDiff.value) return
+
+  syncBusy.value = true
+
+  try {
+    if (syncDirection.value === 'pull') {
+      watchlistStore.setGroups(syncCloudGroups.value)
+    } else {
+      await pushWatchlistToCloud(watchlistStore.groups)
+    }
+    message.success(`${syncDirectionLabel(syncDirection.value)}成功`)
+    syncOpen.value = false
+  } catch (error) {
+    message.error(`${syncDirectionLabel(syncDirection.value)}失败：${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    syncBusy.value = false
+  }
+}
+
 async function loadQuoteNames(codes: string[]) {
   const requestId = ++quoteNameRequestId
 
@@ -369,6 +441,27 @@ function getQuoteName(code: string) {
 
   <ProList title="自选行情">
     <ProListItem
+      description="自选分组与股票保存在云端网关；两个方向都是全量覆盖，操作前会展示差异供确认。"
+      title="云端同步"
+      vertical
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <Button
+          :loading="syncBusy && syncDirection === 'pull'"
+          @click="openSync('pull')"
+        >
+          从云端拉取
+        </Button>
+        <Button
+          :loading="syncBusy && syncDirection === 'push'"
+          @click="openSync('push')"
+        >
+          推送到云端
+        </Button>
+      </div>
+    </ProListItem>
+
+    <ProListItem
       description="创建分组后，可以把不同用途的股票分别展示。分组名称可直接修改。"
       title="管理分组"
       vertical
@@ -514,4 +607,92 @@ function getQuoteName(code: string) {
       </div>
     </ProListItem>
   </ProList>
+
+  <Modal
+    v-model:open="syncOpen"
+    cancel-text="取消"
+    :confirm-loading="syncBusy"
+    :ok-button-props="{ danger: true }"
+    :ok-text="syncDirectionLabel(syncDirection)"
+    :title="`${syncDirectionLabel(syncDirection)} · 确认差异`"
+    @ok="confirmSync"
+  >
+    <template v-if="syncDiff">
+      <div class="mb-3 text-3.5 font-600">
+        {{ syncSummary(syncDirection, syncDiff) }}
+      </div>
+
+      <div class="mb-2 text-3 color-[--ant-color-text-secondary]">
+        本地 {{ syncDiff.localGroups }} 组 · {{ syncDiff.localCodes }} 只 ｜ 云端 {{ syncDiff.cloudGroups }} 组 · {{ syncDiff.cloudCodes }} 只
+      </div>
+
+      <div
+        v-if="hasWatchlistDifference(syncDiff)"
+        class="text-3 color-[--ant-color-warning]"
+      >
+        ⚠ 同步后以下差异将被覆盖：
+      </div>
+
+      <div
+        v-if="syncDiff.localOnlyGroups.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅本地有分组（{{ syncDiff.localOnlyGroups.length }}）
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <Tag
+            v-for="name in syncDiff.localOnlyGroups"
+            :key="name"
+          >
+            {{ name }}
+          </Tag>
+        </div>
+      </div>
+
+      <div
+        v-if="syncDiff.cloudOnlyGroups.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅云端有分组（{{ syncDiff.cloudOnlyGroups.length }}）
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <Tag
+            v-for="name in syncDiff.cloudOnlyGroups"
+            :key="name"
+          >
+            {{ name }}
+          </Tag>
+        </div>
+      </div>
+
+      <div
+        v-if="syncDiff.localOnlyCodes.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅本地有股票（{{ syncDiff.localOnlyCodes.length }}）
+        </div>
+        <code class="text-3">{{ syncDiff.localOnlyCodes.slice(0, 20).join('、') }}<template v-if="syncDiff.localOnlyCodes.length > 20"> 等 {{ syncDiff.localOnlyCodes.length }} 只</template></code>
+      </div>
+
+      <div
+        v-if="syncDiff.cloudOnlyCodes.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅云端有股票（{{ syncDiff.cloudOnlyCodes.length }}）
+        </div>
+        <code class="text-3">{{ syncDiff.cloudOnlyCodes.slice(0, 20).join('、') }}<template v-if="syncDiff.cloudOnlyCodes.length > 20"> 等 {{ syncDiff.cloudOnlyCodes.length }} 只</template></code>
+      </div>
+
+      <div
+        v-if="!hasWatchlistDifference(syncDiff)"
+        class="mt-2 text-3 color-[--ant-color-success]"
+      >
+        本地与云端完全一致，无需变更。
+      </div>
+    </template>
+  </Modal>
 </template>
