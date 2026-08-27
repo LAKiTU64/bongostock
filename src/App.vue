@@ -14,6 +14,7 @@ import type { MarketSettingsSnapshot } from './stores/market'
 import { useTauriListen } from './composables/useTauriListen'
 import { useWindowState } from './composables/useWindowState'
 import { LANGUAGE, LISTEN_KEY, WINDOW_LABEL } from './constants'
+import { startWatchlistSync } from './market/watchlistSync'
 import { hideWindow, showWindow } from './plugins/window'
 import { useAppStore } from './stores/app'
 import { useCatStore } from './stores/cat'
@@ -51,6 +52,7 @@ onMounted(async () => {
   await shortcutStore.$tauri.start()
   await watchlistStore.$tauri.start()
   watchlistStore.init()
+  startWatchlistSync()
   await restoreState()
 })
 

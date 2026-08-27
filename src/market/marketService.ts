@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import { INVOKE_KEY } from '@/constants'
+import { notifyMarketActivity } from '@/market/watchlistSync'
 import { useMarketStore } from '@/stores/market'
 
 export interface StockQuote {
@@ -51,7 +52,9 @@ export interface TrendSeries {
  * BongoStock API v1 (cloud) — there is no built-in local data source.
  */
 export async function fetchQuotes(codes: readonly string[]): Promise<StockQuote[]> {
-  return fetchExternalQuotes(codes)
+  const rows = await fetchExternalQuotes(codes)
+  notifyMarketActivity()
+  return rows
 }
 
 export async function fetchTrendSeries(
@@ -60,11 +63,15 @@ export async function fetchTrendSeries(
   signal?: AbortSignal,
   _force = false,
 ): Promise<TrendSeries> {
-  return fetchExternalTrendSeries(code, days, signal)
+  const series = await fetchExternalTrendSeries(code, days, signal)
+  notifyMarketActivity()
+  return series
 }
 
 export async function fetchDailyKlines(code: string, count = 30, force = false): Promise<StockKline[]> {
-  return fetchExternalDailyKlines(code, count, force)
+  const rows = await fetchExternalDailyKlines(code, count, force)
+  notifyMarketActivity()
+  return rows
 }
 
 export async function searchSecurityCandidates(value: string): Promise<SecurityCandidate[]> {

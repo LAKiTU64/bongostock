@@ -199,6 +199,26 @@ function removeCode(groupId: string, code: string) {
   errorMessage.value = ''
 }
 
+function moveCodeUp(groupId: string, index: number) {
+  if (index <= 0) return
+  watchlistStore.moveCode(groupId, index, index - 1)
+}
+
+function moveCodeDown(groupId: string, index: number, length: number) {
+  if (index >= length - 1) return
+  watchlistStore.moveCode(groupId, index, index + 1)
+}
+
+function moveGroupUp(index: number) {
+  if (index <= 0) return
+  watchlistStore.moveGroup(index, index - 1)
+}
+
+function moveGroupDown(index: number, length: number) {
+  if (index >= length - 1) return
+  watchlistStore.moveGroup(index, index + 1)
+}
+
 function updatePanelSettings(values: Parameters<typeof watchlistStore.updatePanelSettings>[0]) {
   watchlistStore.updatePanelSettings(values)
   void emit(LISTEN_KEY.STOCK_PANEL_SETTINGS_CHANGED, { ...watchlistStore.panel })
@@ -233,6 +253,7 @@ const syncDirection = ref<SyncDirection>('pull')
 const syncBusy = ref(false)
 const syncDiff = ref<WatchlistDiff | null>(null)
 const syncCloudGroups = ref<WatchlistGroup[]>([])
+const syncCloudUpdatedAt = ref(0)
 
 function syncDirectionLabel(direction: SyncDirection) {
   return direction === 'pull' ? '从云端拉取' : '推送到云端'
@@ -259,8 +280,15 @@ async function openSync(direction: SyncDirection) {
   syncOpen.value = true
 
   try {
-    const cloudGroups = await fetchCloudWatchlist()
+    const cloud = await fetchCloudWatchlist()
+    if (!cloud) {
+      message.info('云端自选为空')
+      syncOpen.value = false
+      return
+    }
+    const cloudGroups = cloud.groups
     syncCloudGroups.value = cloudGroups
+    syncCloudUpdatedAt.value = cloud.updatedAt
     syncDiff.value = diffWatchlist(watchlistStore.groups, cloudGroups)
   } catch (error) {
     message.error(`读取云端自选失败：${error instanceof Error ? error.message : String(error)}`)
@@ -277,9 +305,11 @@ async function confirmSync() {
 
   try {
     if (syncDirection.value === 'pull') {
-      watchlistStore.setGroups(syncCloudGroups.value)
+      watchlistStore.setGroups(syncCloudGroups.value, true, false)
+      watchlistStore.markSynced(syncCloudUpdatedAt.value)
     } else {
-      await pushWatchlistToCloud(watchlistStore.groups)
+      const updatedAt = await pushWatchlistToCloud(watchlistStore.groups, watchlistStore.lastSyncedAt)
+      watchlistStore.markSynced(updatedAt)
     }
     message.success(`${syncDirectionLabel(syncDirection.value)}成功`)
     syncOpen.value = false
@@ -547,11 +577,29 @@ function getQuoteName(code: string) {
     >
       <div class="grid gap-3">
         <section
-          v-for="group in groups"
+          v-for="(group, groupIndex) in groups"
           :key="group.id"
           class="overflow-hidden border-[--ant-color-border-secondary] bg-[--ant-color-bg-container] border rounded-lg"
         >
-          <header class="flex items-center gap-2 border-b border-b-[--ant-color-border-secondary] bg-[--ant-color-fill-quaternary] px-3 py-2.5">
+          <header class="flex items-center gap-1.5 border-b border-b-[--ant-color-border-secondary] bg-[--ant-color-fill-quaternary] px-2.5 py-1.5">
+            <SpaceCompact size="small">
+              <Button
+                aria-label="分组上移"
+                :disabled="groupIndex === 0"
+                size="small"
+                @click="moveGroupUp(groupIndex)"
+              >
+                ↑
+              </Button>
+              <Button
+                aria-label="分组下移"
+                :disabled="groupIndex === groups.length - 1"
+                size="small"
+                @click="moveGroupDown(groupIndex, groups.length)"
+              >
+                ↓
+              </Button>
+            </SpaceCompact>
             <Input
               :aria-label="`分组名称：${group.name}`"
               class="min-w-0 flex-1 text-3.5 font-600 px-0!"
@@ -579,21 +627,39 @@ function getQuoteName(code: string) {
             class="grid"
           >
             <div
-              v-for="code in group.codes"
+              v-for="(code, codeIndex) in group.codes"
               :key="code"
-              class="flex items-center justify-between border-b border-b-[--ant-color-border-secondary] px-3 py-2.5 last:border-b-0"
+              class="flex items-center justify-between border-b border-b-[--ant-color-border-secondary] px-2.5 py-1.5 last:border-b-0"
             >
               <div class="min-w-0 flex flex-col">
-                <span class="truncate text-3.5 font-600">{{ getQuoteName(code) }}</span>
-                <code class="text-3 color-[--ant-color-text-tertiary]">{{ code }}</code>
+                <span class="truncate text-3.5 font-600 leading-5">{{ getQuoteName(code) }}</span>
+                <code class="text-3 color-[--ant-color-text-tertiary] leading-4">{{ code }}</code>
               </div>
-              <Button
-                danger
-                size="small"
-                @click="removeCode(group.id, code)"
-              >
-                删除
-              </Button>
+              <SpaceCompact size="small">
+                <Button
+                  aria-label="股票上移"
+                  :disabled="codeIndex === 0"
+                  size="small"
+                  @click="moveCodeUp(group.id, codeIndex)"
+                >
+                  ↑
+                </Button>
+                <Button
+                  aria-label="股票下移"
+                  :disabled="codeIndex === group.codes.length - 1"
+                  size="small"
+                  @click="moveCodeDown(group.id, codeIndex, group.codes.length)"
+                >
+                  ↓
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  @click="removeCode(group.id, code)"
+                >
+                  删除
+                </Button>
+              </SpaceCompact>
             </div>
           </div>
 
