@@ -24,7 +24,6 @@ const generalStore = useGeneralStore()
 const skinStore = useSkinStore()
 const leftPulse = ref(false)
 const rightPulse = ref(false)
-const phase1Controller = new AbortController()
 const COMPACT_CONTENT_WIDTH = 150
 const BUILTIN_CONTENT_WIDTH = 180
 const COMPACT_LEFT_GUTTER = 6
@@ -63,25 +62,12 @@ const DRAG_THRESHOLD = 5
 
 onMounted(startListening)
 
-onMounted(async () => {
-  if (!import.meta.env.DEV || import.meta.env.VITE_MARKET_POC !== 'true') return
-
-  try {
-    const { runPhase1PocFromEnv } = await import('@/market/phase1Poc')
-    await runPhase1PocFromEnv(phase1Controller.signal)
-  } catch (error) {
-    // This guard keeps an unexpected PoC failure outside the desktop-pet lifecycle.
-    globalThis.console.error('[Phase 1] unexpected PoC failure', error)
-  }
-})
-
 onUnmounted(() => {
   clearTimeout(leftPulseTimer)
   clearTimeout(rightPulseTimer)
   clearTimeout(panelFocusTimer)
   clearTimeout(dragResetTimer)
   unlistenMainFocus?.()
-  phase1Controller.abort()
 })
 
 onMounted(async () => {

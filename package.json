@@ -1,7 +1,7 @@
 {
   "name": "bongo-stock",
   "type": "module",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "author": "BongoStock contributors",
   "scripts": {
@@ -42,7 +42,6 @@
     "nanoid": "^5.1.9",
     "pinia": "^3.0.4",
     "pixi.js": "^8.18.1",
-    "stock-api": "2.7.3",
     "tauri-plugin-locale-api": "^2.0.1",
     "tauri-plugin-macos-permissions-api": "^2.3.0",
     "type-fest": "^5.6.0",

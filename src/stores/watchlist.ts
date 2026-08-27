@@ -20,7 +20,7 @@ export interface StockPanelSettings {
 
 const CODE_PATTERN = /^(?:SH|SZ)\d{6}$/
 const DEFAULT_GROUP_NAME = '自选股'
-export const MAX_WATCHLIST_SIZE = 50
+export const MAX_WATCHLIST_SIZE = 300
 export const MAX_WATCHLIST_GROUPS = 8
 export const MIN_FADE_DELAY_SECONDS = 1
 export const MAX_FADE_DELAY_SECONDS = 300
@@ -117,6 +117,9 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     dimmedOpacity: 28,
     stateRetentionSeconds: 30,
   })
+  // 云同步状态：lastSyncedAt 为上次与云端对齐的服务器时间戳，dirty 表示本地有未推送的变更。
+  const lastSyncedAt = ref(0)
+  const dirty = ref(false)
   const totalCodes = computed(() => codes.value.length)
 
   // 去重后的证券集合：同一只证券分在多个分组时只请求一次，也只占一个名额。
@@ -124,10 +127,16 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     codes.value = [...new Set(groups.value.flatMap(group => group.codes))]
   }
 
-  function setGroups(values: readonly WatchlistGroup[], notify = true) {
+  /**
+   * 更新自选分组。notify 控制是否广播 WATCHLIST_CHANGED（行情面板刷新）；
+   * markDirty 控制是否标记"有待推送的本地变更"——用户操作应标记，
+   * 同步拉取/初始化/事件回放不应标记（避免拉取→推送死循环）。
+   */
+  function setGroups(values: readonly WatchlistGroup[], notify = true, markDirty = true) {
     groups.value = sanitizeGroups(values)
     syncCodes()
 
+    if (markDirty) dirty.value = true
     if (notify) void emit(LISTEN_KEY.WATCHLIST_CHANGED, cloneGroups(groups.value))
   }
 
@@ -136,7 +145,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     const hydratedGroups = sanitizeGroups(groups.value)
 
     if (hydratedGroups.length > 0) {
-      setGroups(hydratedGroups, false)
+      setGroups(hydratedGroups, false, false)
       return
     }
 
@@ -145,7 +154,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
 
     const initialCodes = legacyCodes.length > 0 ? legacyCodes : [...DEFAULT_WATCHLIST]
 
-    setGroups([{ id: 'default', name: DEFAULT_GROUP_NAME, codes: initialCodes }], false)
+    setGroups([{ id: 'default', name: DEFAULT_GROUP_NAME, codes: initialCodes }], false, false)
   }
 
   function addGroup(value: string) {
@@ -205,21 +214,50 @@ export const useWatchlistStore = defineStore('watchlist', () => {
       : group))
   }
 
+  /** 重排组内股票：fromIndex → toIndex（走 setGroups 自动触发同步推送）。 */
+  function moveCode(groupId: string, fromIndex: number, toIndex: number) {
+    setGroups(groups.value.map((group) => {
+      if (group.id !== groupId) return group
+      const codes = [...group.codes]
+      if (fromIndex < 0 || fromIndex >= codes.length) return group
+      const [moved] = codes.splice(fromIndex, 1)
+      if (moved === undefined) return group
+      codes.splice(Math.max(0, Math.min(toIndex, codes.length)), 0, moved)
+      return { ...group, codes }
+    }))
+  }
+
+  /** 重排分组：fromIndex → toIndex（走 setGroups 自动触发同步推送）。 */
+  function moveGroup(fromIndex: number, toIndex: number) {
+    const next = [...groups.value]
+    if (fromIndex < 0 || fromIndex >= next.length) return
+    const [moved] = next.splice(fromIndex, 1)
+    if (moved === undefined) return
+    next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved)
+    setGroups(next)
+  }
+
   function replaceFromEvent(values: readonly WatchlistGroup[] | readonly string[]) {
     if (values.length > 0 && typeof values[0] === 'string') {
       setGroups([{
         id: 'default',
         name: DEFAULT_GROUP_NAME,
         codes: values as readonly string[] as string[],
-      }], false)
+      }], false, false)
       return
     }
 
-    setGroups(values as readonly WatchlistGroup[], false)
+    setGroups(values as readonly WatchlistGroup[], false, false)
   }
 
   function updatePanelSettings(values: Partial<StockPanelSettings>) {
     Object.assign(panel, sanitizePanelSettings({ ...panel, ...values }))
+  }
+
+  /** 记录与云端对齐的时间戳并清除待推送标记（由同步逻辑调用）。 */
+  function markSynced(updatedAt: number) {
+    lastSyncedAt.value = updatedAt
+    dirty.value = false
   }
 
   return {
@@ -227,13 +265,19 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     groups,
     panel,
     totalCodes,
+    lastSyncedAt,
+    dirty,
     init,
     addGroup,
     renameGroup,
     removeGroup,
     addCode,
     removeCode,
+    moveCode,
+    moveGroup,
     replaceFromEvent,
     updatePanelSettings,
+    setGroups,
+    markSynced,
   }
 })

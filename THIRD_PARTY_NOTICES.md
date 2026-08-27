@@ -26,7 +26,7 @@ BongoStock 的桌宠实现、模型目录兼容和交互方式参考了 BongoCat
 
 ## 行情数据与资讯接口
 
-内置行情会访问第三方公开行情接口；外接模式则访问用户配置的 HTTP/HTTPS 服务。资讯中心只访问用户配置的 BongoStock Gateway，由 Gateway 对接其配置的资讯提供方。数据接口、字段、可用性和许可可能变化，使用者应遵守数据提供方条款。BongoStock 不保证行情或资讯的完整性、实时性或交易适用性。
+行情数据由用户配置的 HTTP/HTTPS 云端服务（BongoStock API v1 / Gateway）提供，客户端不内置任何本地行情数据源。资讯中心只访问用户配置的 BongoStock Gateway，由 Gateway 对接其配置的资讯提供方。数据接口、字段、可用性和许可可能变化，使用者应遵守数据提供方条款。BongoStock 不保证行情或资讯的完整性、实时性或交易适用性。
 
 ## 应用依赖
 

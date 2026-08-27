@@ -193,7 +193,7 @@ pnpm tauri build --target universal-apple-darwin --bundles app,dmg
 
 点击“测试连接”。成功后只请求 `/v1/capabilities`，不会携带证券代码。Token 会明文保存在当前用户的应用数据中并在重启后恢复，请勿上传或分享这些文件。
 
-选择“外接行情服务”后，报价、搜索、走势和 K 线使用 Gateway；选择“内置行情”时，这些行情请求仍使用客户端内置源。资讯中心与该选择相互独立，只要 Gateway 提供 `/v1/news/search` 且服务端已配置资讯能力，资讯仍通过上述地址和 Token 请求。
+报价、搜索、走势和 K 线全部使用 Gateway（BongoStock API v1），客户端不内置任何行情源。资讯中心独立配置，只要 Gateway 提供 `/v1/news/search` 且服务端已配置资讯能力，资讯通过同一地址和 Token 请求。
 
 常见 Store 位置：
 

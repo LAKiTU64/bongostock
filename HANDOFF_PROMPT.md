@@ -39,8 +39,7 @@ pnpm install --frozen-lockfile
 - 行情支持分时、5 日、日 K，详情仅在点击证券后加载；
 - 浮窗支持行情/资讯双模式，资讯只通过 Gateway 的 /v1/news/search 按需检索；
 - 资讯支持1天、3天、7天和不限时间，最新优先，支持全市场、简报、个股及约10/20条两个档位；
-- 数据源可选择内置服务或用户配置的 HTTP/HTTPS BongoStock API v1；
-- 外接模式不静默回退到内置源，Bearer Token 保存在本机应用数据并在重启后恢复；
+- 行情数据源仅为外接的 BongoStock API v1（HTTP/HTTPS），客户端不内置任何本地行情源；Bearer Token 保存在本机应用数据并在重启后恢复；
 - Windows 开发、构建和 NSIS 安装包已验证并发布，Apple Silicon DMG 本地构建已验证，macOS 仍需完整真机回归；
 - 当前没有代码签名、macOS 公证或自动更新；Windows 安装包首次运行可能显示安全提醒。
 

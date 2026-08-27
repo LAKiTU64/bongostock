@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { emit } from '@tauri-apps/api/event'
-import { Button, Input, InputNumber, Select, Slider, SpaceAddon, SpaceCompact } from 'antdv-next'
+import { Button, Input, InputNumber, message, Modal, Select, Slider, SpaceAddon, SpaceCompact, Tag } from 'antdv-next'
 import { computed, ref, watch } from 'vue'
 
 import type { SecurityCandidate } from '@/market/marketService'
+import type { WatchlistDiff } from '@/market/watchlistSync'
 import type { WatchlistGroup } from '@/stores/watchlist'
 
 import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
 import { LISTEN_KEY } from '@/constants'
 import { fetchQuotes, searchSecurityCandidates, testExternalMarketConnection } from '@/market/marketService'
+import {
+  diffWatchlist,
+  fetchCloudWatchlist,
+  hasWatchlistDifference,
+  pushWatchlistToCloud,
+
+} from '@/market/watchlistSync'
 import { normalizeBaseUrl, useMarketStore } from '@/stores/market'
 import {
   MAX_DIMMED_OPACITY,
@@ -46,13 +54,6 @@ const dimmedOpacity = computed({
 const stateRetentionSeconds = computed({
   get: () => watchlistStore.panel.stateRetentionSeconds,
   set: value => updatePanelSettings({ stateRetentionSeconds: value }),
-})
-const marketSource = computed({
-  get: () => marketStore.source,
-  set: (value) => {
-    marketStore.source = value
-    emitMarketSettings()
-  },
 })
 // Edited as a local draft: writing to the store on every keystroke broadcasts a
 // settings event that this same window receives and normalizes, which would
@@ -92,8 +93,8 @@ watch(groups, (values) => {
 }, { immediate: true })
 
 watch(
-  [() => marketStore.source, () => [...watchlistStore.codes]],
-  ([, codes]) => void loadQuoteNames(codes),
+  () => [...watchlistStore.codes],
+  codes => void loadQuoteNames(codes),
   { immediate: true },
 )
 
@@ -198,6 +199,26 @@ function removeCode(groupId: string, code: string) {
   errorMessage.value = ''
 }
 
+function moveCodeUp(groupId: string, index: number) {
+  if (index <= 0) return
+  watchlistStore.moveCode(groupId, index, index - 1)
+}
+
+function moveCodeDown(groupId: string, index: number, length: number) {
+  if (index >= length - 1) return
+  watchlistStore.moveCode(groupId, index, index + 1)
+}
+
+function moveGroupUp(index: number) {
+  if (index <= 0) return
+  watchlistStore.moveGroup(index, index - 1)
+}
+
+function moveGroupDown(index: number, length: number) {
+  if (index >= length - 1) return
+  watchlistStore.moveGroup(index, index + 1)
+}
+
 function updatePanelSettings(values: Parameters<typeof watchlistStore.updatePanelSettings>[0]) {
   watchlistStore.updatePanelSettings(values)
   void emit(LISTEN_KEY.STOCK_PANEL_SETTINGS_CHANGED, { ...watchlistStore.panel })
@@ -222,6 +243,80 @@ async function testConnection() {
     connectionMessage.value = error instanceof Error ? error.message : String(error)
   } finally {
     isTestingConnection.value = false
+  }
+}
+
+type SyncDirection = 'pull' | 'push'
+
+const syncOpen = ref(false)
+const syncDirection = ref<SyncDirection>('pull')
+const syncBusy = ref(false)
+const syncDiff = ref<WatchlistDiff | null>(null)
+const syncCloudGroups = ref<WatchlistGroup[]>([])
+const syncCloudUpdatedAt = ref(0)
+
+function syncDirectionLabel(direction: SyncDirection) {
+  return direction === 'pull' ? '从云端拉取' : '推送到云端'
+}
+
+function syncSummary(direction: SyncDirection, diff: WatchlistDiff) {
+  if (direction === 'pull') {
+    return `将用云端数据覆盖本地（本地 ${diff.localGroups} 组 ${diff.localCodes} 只 → 云端 ${diff.cloudGroups} 组 ${diff.cloudCodes} 只）`
+  }
+  return `将用本地数据覆盖云端（云端 ${diff.cloudGroups} 组 ${diff.cloudCodes} 只 → 本地 ${diff.localGroups} 组 ${diff.localCodes} 只）`
+}
+
+async function openSync(direction: SyncDirection) {
+  commitBaseUrl()
+
+  if (!marketStore.external.baseUrl || !marketStore.bearerToken.trim()) {
+    message.warning('请先在上方配置外接服务地址与 Bearer Token')
+    return
+  }
+
+  syncDirection.value = direction
+  syncBusy.value = true
+  syncDiff.value = null
+  syncOpen.value = true
+
+  try {
+    const cloud = await fetchCloudWatchlist()
+    if (!cloud) {
+      message.info('云端自选为空')
+      syncOpen.value = false
+      return
+    }
+    const cloudGroups = cloud.groups
+    syncCloudGroups.value = cloudGroups
+    syncCloudUpdatedAt.value = cloud.updatedAt
+    syncDiff.value = diffWatchlist(watchlistStore.groups, cloudGroups)
+  } catch (error) {
+    message.error(`读取云端自选失败：${error instanceof Error ? error.message : String(error)}`)
+    syncOpen.value = false
+  } finally {
+    syncBusy.value = false
+  }
+}
+
+async function confirmSync() {
+  if (!syncDiff.value) return
+
+  syncBusy.value = true
+
+  try {
+    if (syncDirection.value === 'pull') {
+      watchlistStore.setGroups(syncCloudGroups.value, true, false)
+      watchlistStore.markSynced(syncCloudUpdatedAt.value)
+    } else {
+      const updatedAt = await pushWatchlistToCloud(watchlistStore.groups, watchlistStore.lastSyncedAt)
+      watchlistStore.markSynced(updatedAt)
+    }
+    message.success(`${syncDirectionLabel(syncDirection.value)}成功`)
+    syncOpen.value = false
+  } catch (error) {
+    message.error(`${syncDirectionLabel(syncDirection.value)}失败：${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    syncBusy.value = false
   }
 }
 
@@ -252,89 +347,72 @@ function getQuoteName(code: string) {
 </script>
 
 <template>
-  <ProList title="行情数据源">
+  <ProList title="行情服务">
     <ProListItem
-      description="内置源使用当前 stock-api；外接源只访问下面配置的 BongoStock API v1 地址。"
-      title="数据来源"
+      description="服务端应实现 /v1/capabilities、/v1/quotes、/v1/search、/v1/trends 和 /v1/klines。"
+      title="外接服务地址"
       vertical
     >
-      <Select
-        v-model:value="marketSource"
-        class="w-full"
-        :options="[
-          { label: '内置 stock-api（推荐）', value: 'builtin' },
-          { label: '外接行情服务', value: 'external' },
-        ]"
+      <Input
+        v-model:value="baseUrlDraft"
+        placeholder="https://example.com"
+        @blur="commitBaseUrl"
+        @press-enter="commitBaseUrl"
+      />
+      <div
+        v-if="externalUsesHttp"
+        class="mt-2 text-3 color-[--ant-color-warning]"
+      >
+        当前使用 HTTP：股票代码、请求内容和令牌可能被网络设备看到。建议改用 HTTPS。
+      </div>
+    </ProListItem>
+
+    <ProListItem
+      description="令牌保存在本机应用数据中，重启后会自动恢复。请勿分享或提交包含令牌的配置文件。"
+      title="Bearer Token（可选）"
+    >
+      <Input
+        v-model:value="marketStore.bearerToken"
+        type="password"
+        @change="emitMarketSettings"
       />
     </ProListItem>
 
-    <template v-if="marketSource === 'external'">
-      <ProListItem
-        description="服务端应实现 /v1/capabilities、/v1/quotes、/v1/search、/v1/trends 和 /v1/klines。"
-        title="外接服务地址"
-        vertical
-      >
-        <Input
-          v-model:value="baseUrlDraft"
-          placeholder="https://example.com"
-          @blur="commitBaseUrl"
-          @press-enter="commitBaseUrl"
+    <ProListItem
+      description="外接服务无响应时，超过此时间会结束请求。"
+      title="连接超时"
+    >
+      <SpaceCompact>
+        <InputNumber
+          v-model:value="externalTimeout"
+          class="w-24"
+          :max="30000"
+          :min="1000"
+          :precision="0"
         />
-        <div
-          v-if="externalUsesHttp"
-          class="mt-2 text-3 color-[--ant-color-warning]"
+        <SpaceAddon>毫秒</SpaceAddon>
+      </SpaceCompact>
+    </ProListItem>
+
+    <ProListItem
+      description="只测试 /v1/capabilities，不会请求股票代码。"
+      title="连接测试"
+    >
+      <div class="flex items-center gap-3">
+        <Button
+          :loading="isTestingConnection"
+          @click="testConnection"
         >
-          当前使用 HTTP：股票代码、请求内容和令牌可能被网络设备看到。建议改用 HTTPS。
-        </div>
-      </ProListItem>
-
-      <ProListItem
-        description="令牌保存在本机应用数据中，重启后会自动恢复。请勿分享或提交包含令牌的配置文件。"
-        title="Bearer Token（可选）"
-      >
-        <Input
-          v-model:value="marketStore.bearerToken"
-          type="password"
-          @change="emitMarketSettings"
-        />
-      </ProListItem>
-
-      <ProListItem
-        description="外接服务无响应时，超过此时间会结束请求。"
-        title="连接超时"
-      >
-        <SpaceCompact>
-          <InputNumber
-            v-model:value="externalTimeout"
-            class="w-24"
-            :max="30000"
-            :min="1000"
-            :precision="0"
-          />
-          <SpaceAddon>毫秒</SpaceAddon>
-        </SpaceCompact>
-      </ProListItem>
-
-      <ProListItem
-        description="只测试 /v1/capabilities，不会请求股票代码。"
-        title="连接测试"
-      >
-        <div class="flex items-center gap-3">
-          <Button
-            :loading="isTestingConnection"
-            @click="testConnection"
-          >
-            测试连接
-          </Button>
-          <span
-            v-if="connectionMessage"
-            class="text-3 color-text-secondary"
-          >
-            {{ connectionMessage }}
-          </span>
-        </div>
-      </ProListItem>
-    </template>
+          测试连接
+        </Button>
+        <span
+          v-if="connectionMessage"
+          class="text-3 color-text-secondary"
+        >
+          {{ connectionMessage }}
+        </span>
+      </div>
+    </ProListItem>
   </ProList>
 
   <ProList title="行情浮窗">
@@ -392,6 +470,27 @@ function getQuoteName(code: string) {
   </ProList>
 
   <ProList title="自选行情">
+    <ProListItem
+      description="自选分组与股票保存在云端网关；两个方向都是全量覆盖，操作前会展示差异供确认。"
+      title="云端同步"
+      vertical
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <Button
+          :loading="syncBusy && syncDirection === 'pull'"
+          @click="openSync('pull')"
+        >
+          从云端拉取
+        </Button>
+        <Button
+          :loading="syncBusy && syncDirection === 'push'"
+          @click="openSync('push')"
+        >
+          推送到云端
+        </Button>
+      </div>
+    </ProListItem>
+
     <ProListItem
       description="创建分组后，可以把不同用途的股票分别展示。分组名称可直接修改。"
       title="管理分组"
@@ -478,11 +577,29 @@ function getQuoteName(code: string) {
     >
       <div class="grid gap-3">
         <section
-          v-for="group in groups"
+          v-for="(group, groupIndex) in groups"
           :key="group.id"
           class="overflow-hidden border-[--ant-color-border-secondary] bg-[--ant-color-bg-container] border rounded-lg"
         >
-          <header class="flex items-center gap-2 border-b border-b-[--ant-color-border-secondary] bg-[--ant-color-fill-quaternary] px-3 py-2.5">
+          <header class="flex items-center gap-1.5 border-b border-b-[--ant-color-border-secondary] bg-[--ant-color-fill-quaternary] px-2.5 py-1.5">
+            <SpaceCompact size="small">
+              <Button
+                aria-label="分组上移"
+                :disabled="groupIndex === 0"
+                size="small"
+                @click="moveGroupUp(groupIndex)"
+              >
+                ↑
+              </Button>
+              <Button
+                aria-label="分组下移"
+                :disabled="groupIndex === groups.length - 1"
+                size="small"
+                @click="moveGroupDown(groupIndex, groups.length)"
+              >
+                ↓
+              </Button>
+            </SpaceCompact>
             <Input
               :aria-label="`分组名称：${group.name}`"
               class="min-w-0 flex-1 text-3.5 font-600 px-0!"
@@ -510,21 +627,39 @@ function getQuoteName(code: string) {
             class="grid"
           >
             <div
-              v-for="code in group.codes"
+              v-for="(code, codeIndex) in group.codes"
               :key="code"
-              class="flex items-center justify-between border-b border-b-[--ant-color-border-secondary] px-3 py-2.5 last:border-b-0"
+              class="flex items-center justify-between border-b border-b-[--ant-color-border-secondary] px-2.5 py-1.5 last:border-b-0"
             >
               <div class="min-w-0 flex flex-col">
-                <span class="truncate text-3.5 font-600">{{ getQuoteName(code) }}</span>
-                <code class="text-3 color-[--ant-color-text-tertiary]">{{ code }}</code>
+                <span class="truncate text-3.5 font-600 leading-5">{{ getQuoteName(code) }}</span>
+                <code class="text-3 color-[--ant-color-text-tertiary] leading-4">{{ code }}</code>
               </div>
-              <Button
-                danger
-                size="small"
-                @click="removeCode(group.id, code)"
-              >
-                删除
-              </Button>
+              <SpaceCompact size="small">
+                <Button
+                  aria-label="股票上移"
+                  :disabled="codeIndex === 0"
+                  size="small"
+                  @click="moveCodeUp(group.id, codeIndex)"
+                >
+                  ↑
+                </Button>
+                <Button
+                  aria-label="股票下移"
+                  :disabled="codeIndex === group.codes.length - 1"
+                  size="small"
+                  @click="moveCodeDown(group.id, codeIndex, group.codes.length)"
+                >
+                  ↓
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  @click="removeCode(group.id, code)"
+                >
+                  删除
+                </Button>
+              </SpaceCompact>
             </div>
           </div>
 
@@ -538,4 +673,92 @@ function getQuoteName(code: string) {
       </div>
     </ProListItem>
   </ProList>
+
+  <Modal
+    v-model:open="syncOpen"
+    cancel-text="取消"
+    :confirm-loading="syncBusy"
+    :ok-button-props="{ danger: true }"
+    :ok-text="syncDirectionLabel(syncDirection)"
+    :title="`${syncDirectionLabel(syncDirection)} · 确认差异`"
+    @ok="confirmSync"
+  >
+    <template v-if="syncDiff">
+      <div class="mb-3 text-3.5 font-600">
+        {{ syncSummary(syncDirection, syncDiff) }}
+      </div>
+
+      <div class="mb-2 text-3 color-[--ant-color-text-secondary]">
+        本地 {{ syncDiff.localGroups }} 组 · {{ syncDiff.localCodes }} 只 ｜ 云端 {{ syncDiff.cloudGroups }} 组 · {{ syncDiff.cloudCodes }} 只
+      </div>
+
+      <div
+        v-if="hasWatchlistDifference(syncDiff)"
+        class="text-3 color-[--ant-color-warning]"
+      >
+        ⚠ 同步后以下差异将被覆盖：
+      </div>
+
+      <div
+        v-if="syncDiff.localOnlyGroups.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅本地有分组（{{ syncDiff.localOnlyGroups.length }}）
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <Tag
+            v-for="name in syncDiff.localOnlyGroups"
+            :key="name"
+          >
+            {{ name }}
+          </Tag>
+        </div>
+      </div>
+
+      <div
+        v-if="syncDiff.cloudOnlyGroups.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅云端有分组（{{ syncDiff.cloudOnlyGroups.length }}）
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <Tag
+            v-for="name in syncDiff.cloudOnlyGroups"
+            :key="name"
+          >
+            {{ name }}
+          </Tag>
+        </div>
+      </div>
+
+      <div
+        v-if="syncDiff.localOnlyCodes.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅本地有股票（{{ syncDiff.localOnlyCodes.length }}）
+        </div>
+        <code class="text-3">{{ syncDiff.localOnlyCodes.slice(0, 20).join('、') }}<template v-if="syncDiff.localOnlyCodes.length > 20"> 等 {{ syncDiff.localOnlyCodes.length }} 只</template></code>
+      </div>
+
+      <div
+        v-if="syncDiff.cloudOnlyCodes.length"
+        class="mt-2"
+      >
+        <div class="text-3 color-[--ant-color-text-secondary]">
+          仅云端有股票（{{ syncDiff.cloudOnlyCodes.length }}）
+        </div>
+        <code class="text-3">{{ syncDiff.cloudOnlyCodes.slice(0, 20).join('、') }}<template v-if="syncDiff.cloudOnlyCodes.length > 20"> 等 {{ syncDiff.cloudOnlyCodes.length }} 只</template></code>
+      </div>
+
+      <div
+        v-if="!hasWatchlistDifference(syncDiff)"
+        class="mt-2 text-3 color-[--ant-color-success]"
+      >
+        本地与云端完全一致，无需变更。
+      </div>
+    </template>
+  </Modal>
 </template>
