@@ -2,11 +2,11 @@
 
 BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键盘按下和鼠标点击次数、响应输入动作，并在用户主动点击桌宠时打开行情/资讯浮窗。
 
-- 当前版本：`1.0.1`
-- 当前阶段：`1.0.1`（macOS 修复版）已发布；资讯中心 Phase 0～6 已实现
+- 当前版本：`1.1.0`
+- 当前阶段：`1.1.0` 已发布（自选云端双向同步 v2 + 分组重排）；资讯中心 Phase 0～6 已实现
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
-- 软件包状态：`1.0.1` 的 Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 已通过 [GitHub Release v1.0.1](https://github.com/LAKiTU64/bongostock/releases/tag/v1.0.1) 发布；当前构建未进行代码签名/公证
+- 软件包状态：`1.1.0` 的 Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 已通过 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0) 发布；当前构建未进行代码签名/公证
 - 变更记录：见 [CHANGELOG.md](CHANGELOG.md)
 
 ## 当前功能
@@ -48,7 +48,10 @@ BongoStock 是一款供个人使用的 Windows/macOS 紧凑桌宠。它记录键
 - 默认无操作 2 秒后淡出至 28% 不透明度；等待时间和淡出程度均可调；
 - 打开浮窗或手动刷新时请求一次报价，浮窗关闭时不轮询；
 - 点击证券后按需加载分时、5 日和日 K；
-- 图表悬停显示对应时间/日期与价格，日 K 同时显示开、高、低、收。
+- 图表悬停显示对应时间/日期与价格，日 K 同时显示开、高、低、收；
+- **自选分组与云端双向同步（v2）**：云端为权威源，本地为派生缓存。采用时间戳增量拉取（行情请求顺带检查）+ 2 秒防抖推送 + `baseUpdatedAt` 乐观锁，多终端冲突时返回 409 并自动重拉；云端为空而本地有数据时自动推送本地（首次迁移无痛）；
+- **分组/组内股票重排**：客户端设置页与 Web 管理页均支持 ↑↓/拖拽重排，顺序由云端持久化，两端自动同步；
+- **云端备份/回滚**：每次写入自动快照（最多 10 份），可通过 Web 管理页或 API 一键回滚，回滚结果自动同步到客户端。
 
 ## 行情数据源
 
@@ -113,7 +116,7 @@ pnpm tauri dev
 
 ### Windows
 
-需要 WebView2、Microsoft C++ Build Tools 和 `stable-x86_64-pc-windows-msvc`。`v1.0.0` 的 Windows x64 NSIS 安装包已通过 GitHub Release 发布；本地构建命令为：
+需要 WebView2、Microsoft C++ Build Tools 和 `stable-x86_64-pc-windows-msvc`。`1.1.0` 的 Windows x64 NSIS 安装包已通过 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0) 发布；本地构建命令为：
 
 ```powershell
 pnpm tauri build --bundles nsis
