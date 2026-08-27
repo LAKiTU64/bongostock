@@ -169,10 +169,3 @@ pnpm run audit:release
 - 行情模块由用户配置的 BongoStock API v1 云端服务提供数据，客户端不内置任何行情数据源。
 
 完整声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
-
-## 当前不做
-
-- 自动交易或券商账户操作；
-- 后台行情轮询和交易日服务；
-- 周 K、月 K、提醒、AI 分析或 MCP；
-- 自动更新、代码签名、macOS 公证以及 macOS/Linux 正式安装包发布。
