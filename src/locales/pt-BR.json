@@ -144,7 +144,7 @@
           "mirrorMode": "Alternar o modo espelho do gato.",
           "passThrough": "Alternar se a janela do gato é clicável.",
           "alwaysOnTop": "Alternar se a janela do gato permanece no topo.",
-          "bossKey": "Fecha imediatamente o painel flutuante e interrompe a reprodução do vídeo"
+          "bossKey": "Fecha todas as janelas e interrompe a reprodução do vídeo"
         }
       },
       "about": {

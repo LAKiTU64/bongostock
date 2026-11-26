@@ -1,4 +1,4 @@
-import { isMac } from './platform'
+import { isMac, isWindows } from './platform'
 
 export interface Key {
   eventKey: string
@@ -33,42 +33,10 @@ export const standardKeys: Key[] = [
     eventKey: 'Escape',
     symbol: isMac ? '⎋' : 'Esc',
   },
-  {
-    eventKey: 'F1',
-  },
-  {
-    eventKey: 'F2',
-  },
-  {
-    eventKey: 'F3',
-  },
-  {
-    eventKey: 'F4',
-  },
-  {
-    eventKey: 'F5',
-  },
-  {
-    eventKey: 'F6',
-  },
-  {
-    eventKey: 'F7',
-  },
-  {
-    eventKey: 'F8',
-  },
-  {
-    eventKey: 'F9',
-  },
-  {
-    eventKey: 'F10',
-  },
-  {
-    eventKey: 'F11',
-  },
-  {
-    eventKey: 'F12',
-  }, // 第二排
+  ...Array.from({ length: isMac ? 20 : 24 }, (_, index) => ({
+    eventKey: `F${index + 1}`,
+  })),
+  // 第二排
   {
     eventKey: 'Backquote',
     symbol: '`',
@@ -243,6 +211,31 @@ export const standardKeys: Key[] = [
     eventKey: 'Space',
     symbol: isMac ? '␣' : void 0,
   },
+  // Extended PC keyboard. Keep keypad digits distinct from the typing row.
+  { eventKey: 'Insert' },
+  { eventKey: 'PrintScreen' },
+  { eventKey: 'CapsLock' },
+  { eventKey: 'NumLock' },
+  ...(!isMac
+    ? [
+        { eventKey: 'ScrollLock' },
+        { eventKey: 'Pause' },
+      ]
+    : []),
+  ...Array.from({ length: 10 }, (_, index) => ({
+    eventKey: `Numpad${index}`,
+  })),
+  ...['Add', 'Subtract', 'Multiply', 'Divide', 'Decimal'].map(operation => ({
+    eventKey: `Numpad${operation}`,
+  })),
+  // The Win32 hotkey backend aliases keypad Enter and Equal to Return and E.
+  ...(!isWindows
+    ? [
+        { eventKey: 'NumpadEnter' },
+        { eventKey: 'NumpadEqual' },
+      ]
+    : []),
+  ...['Home', 'End', 'PageUp', 'PageDown', 'Delete'].map(eventKey => ({ eventKey })),
   // 方向键
   {
     eventKey: 'ArrowUp',
@@ -260,7 +253,7 @@ export const standardKeys: Key[] = [
     eventKey: 'ArrowRight',
     symbol: '→',
   },
-].map((item) => {
+].map((item: Key) => {
   const { eventKey } = item
 
   item.symbol ??= eventKey
@@ -274,3 +267,17 @@ export const standardKeys: Key[] = [
 })
 
 export const keys = modifierKeys.concat(standardKeys)
+
+// AppKit identifies the PC Insert position as Help. Prefer the physical code
+// when available, as some PC keyboards deliver the top cluster as F13–F15.
+export function findShortcutKey(event: KeyboardEvent) {
+  let code = event.code
+  if (!code || code === 'Unidentified') {
+    // Never fall back to a layout-dependent letter or digit.
+    if (/^F\d+$/.test(event.key) || ['PrintScreen', 'Help', 'Insert', 'Pause', 'ScrollLock'].includes(event.key)) {
+      code = event.key
+    }
+  }
+  if (isMac && code === 'Help') code = 'Insert'
+  return standardKeys.find(key => key.eventKey === code)
+}

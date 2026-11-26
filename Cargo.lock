@@ -431,8 +431,10 @@ dependencies = [
 name = "bongo-stock"
 version = "1.2.0"
 dependencies = [
+ "core-foundation 0.10.1",
  "fs_extra",
  "gilrs",
+ "io-kit-sys",
  "keyring",
  "rdev",
  "reqwest",

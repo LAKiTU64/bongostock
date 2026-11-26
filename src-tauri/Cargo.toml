@@ -45,6 +45,8 @@ gilrs = { git = "https://github.com/ayangweb/gilrs", default-features = false, f
 
 [target."cfg(target_os = \"macos\")".dependencies]
 tauri-nspanel.workspace = true
+core-foundation = "0.10"
+io-kit-sys = "0.4"
 keyring = { version = "3", features = ["apple-native"] }
 
 # token 只存本机系统凭据库，按平台各接各的后端：macOS 钥匙串 / Windows 凭据管理器 / Linux Secret Service。

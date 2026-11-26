@@ -10,9 +10,11 @@ import { LISTEN_KEY } from '@/constants'
 import {
   MAX_DIMMED_OPACITY,
   MAX_FADE_DELAY_SECONDS,
+  MAX_HIDDEN_RETENTION_MINUTES,
   MAX_STATE_RETENTION_SECONDS,
   MIN_DIMMED_OPACITY,
   MIN_FADE_DELAY_SECONDS,
+  MIN_HIDDEN_RETENTION_MINUTES,
   MIN_STATE_RETENTION_SECONDS,
   useWatchlistStore,
 } from '@/stores/watchlist'
@@ -63,6 +65,17 @@ const dimOpacity = computed({
         suffix="s"
         :value="store.panel.stateRetentionSeconds"
         @update:value="value => typeof value === 'number' && update({ stateRetentionSeconds: value })"
+      />
+    </ProListItem>
+    <ProListItem :title="t('hiddenRetention')">
+      <InputNumber
+        :aria-label="t('hiddenRetention')"
+        :max="MAX_HIDDEN_RETENTION_MINUTES"
+        :min="MIN_HIDDEN_RETENTION_MINUTES"
+        :precision="0"
+        :suffix="t('minutes')"
+        :value="store.panel.hiddenRetentionMinutes"
+        @update:value="value => typeof value === 'number' && update({ hiddenRetentionMinutes: value })"
       />
     </ProListItem>
   </ProList>

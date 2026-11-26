@@ -144,7 +144,7 @@
           "mirrorMode": "Bật/Tắt chế độ gương.",
           "passThrough": "Bật/Tắt cho phép click xuyên cửa sổ mèo.",
           "alwaysOnTop": "Bật/Tắt luôn giữ cửa sổ mèo trên cùng.",
-          "bossKey": "Đóng ngay cửa sổ nổi và dừng phát video"
+          "bossKey": "Đóng ngay tất cả cửa sổ và dừng phát video"
         }
       },
       "about": {

@@ -69,6 +69,7 @@ const design = computed(() => {
   const dark = general.appearance.isDark
   return {
     algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    components: { InputNumber: { controlWidth: 136 } },
     token: {
       colorPrimary: dark ? '#e5c3a4' : '#755946',
       colorLink: dark ? '#e5c3a4' : '#755946',

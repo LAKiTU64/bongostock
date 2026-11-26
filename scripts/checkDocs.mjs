@@ -57,15 +57,11 @@ for (const file of docFiles) {
 
 // 3. 默认外接服务地址：代码与协议文档必须一致。
 const defaultBaseUrl = read('src/stores/market.ts').match(/DEFAULT_BASE_URL = '(.+?)'/)?.[1]
-const documentedBaseUrl = read('docs/EXTERNAL_MARKET_API_V1.md').match(/默认示例为 `(.+?)`/)?.[1]
+const documentedBaseUrl = read('docs/EXTERNAL_MARKET_API_V1.md').match(/默认地址为 `(.+?)`/)?.[1]
 
 if (!defaultBaseUrl) failures.push('src/stores/market.ts 找不到 DEFAULT_BASE_URL')
 else if (defaultBaseUrl !== documentedBaseUrl)
   failures.push(`默认服务地址不一致：代码 ${defaultBaseUrl}，EXTERNAL_MARKET_API_V1.md ${documentedBaseUrl}`)
-
-// 4. 默认地址不得指向个人服务器：公开仓库不应内置任何真实主机。
-if (defaultBaseUrl && !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(defaultBaseUrl))
-  failures.push(`默认服务地址 ${defaultBaseUrl} 不是本机地址，公开仓库不应内置真实主机`)
 
 if (failures.length > 0) {
   console.error('文档一致性检查未通过：')

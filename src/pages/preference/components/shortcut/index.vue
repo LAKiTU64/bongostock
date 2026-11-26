@@ -5,11 +5,15 @@ import { onScopeDispose, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { AppShortcutKey } from '@/composables/useAppShortcuts'
+import type { HidStatus } from '@/composables/useShortcutHid'
 
 import { appShortcutKeys, SHORTCUT_CAPTURED, SHORTCUT_FAILED, SHORTCUT_RECORDING } from '@/composables/useAppShortcuts'
+import { SHORTCUT_HID_RECORDED, SHORTCUT_HID_STATUS } from '@/composables/useShortcutHid'
 import { WINDOW_LABEL } from '@/constants'
 import { useShortcutStore } from '@/stores/shortcut'
-import { keys, standardKeys } from '@/utils/keyboard'
+import { findShortcutKey, keys, modifierKeys } from '@/utils/keyboard'
+import { isMac } from '@/utils/platform'
+import { isPcFunctionAlias, isShortcutHidKey, shortcutAlias, shortcutHidLabel } from '@/utils/shortcutHid'
 
 import { useGeneralText } from '../general/messages'
 
@@ -18,6 +22,8 @@ const { t } = useI18n({ useScope: 'global' })
 const store = useShortcutStore()
 const recording = ref<AppShortcutKey>()
 const feedback = ref('')
+const hidFeedback = ref('')
+let aliasTimer: ReturnType<typeof setTimeout> | undefined
 const labels = {
   bossKey: 'pages.preference.shortcut.labels.bossKey',
   visibleCat: 'pet',
@@ -30,6 +36,7 @@ function label(key: AppShortcutKey) {
   return key === 'visibleCat' || key === 'visiblePreference' ? text(labels[key]) : t(labels[key])
 }
 function format(value: string) {
+  if (isShortcutHidKey(value)) return shortcutHidLabel(value)
   return value.split('+').map(part => keys.find(key => key.tauriKey === part)?.symbol || part).join(' + ')
 }
 function sameShortcut(a: string, b: string) {
@@ -37,14 +44,23 @@ function sameShortcut(a: string, b: string) {
 }
 function endRecording() {
   if (!recording.value) return
-  recording.value = undefined
-  void emitTo(WINDOW_LABEL.MAIN, SHORTCUT_RECORDING, false)
+  finishRecording(false)
 }
-function beginRecording(key: AppShortcutKey) {
+function finishRecording(state: false | { captured: string }) {
+  clearTimeout(aliasTimer)
+  recording.value = undefined
+  hidFeedback.value = ''
+  void emitTo(WINDOW_LABEL.MAIN, SHORTCUT_RECORDING, state)
+}
+function beginRecording(key: AppShortcutKey, event: MouseEvent) {
   if (recording.value === key) {
     endRecording()
     return
   }
+  // WKWebView on macOS leaves keyboard focus outside a mouse-clicked button.
+  const button = event.currentTarget as HTMLButtonElement
+  button.focus({ preventScroll: true })
+  clearTimeout(aliasTimer)
   feedback.value = ''
   recording.value = key
   void emitTo(WINDOW_LABEL.MAIN, SHORTCUT_RECORDING, true)
@@ -52,12 +68,25 @@ function beginRecording(key: AppShortcutKey) {
 function commit(value: string) {
   const key = recording.value
   if (!key) return
-  endRecording()
-  if (appShortcutKeys.some(other => other !== key && sameShortcut(store[other], value))) {
+  finishRecording({ captured: value })
+  const canonical = (binding: string) => isMac ? shortcutAlias(binding) : binding
+  if (appShortcutKeys.some(other => other !== key && sameShortcut(canonical(store[other]), canonical(value)))) {
     feedback.value = text('conflict')
     return
   }
+  feedback.value = ''
   if (!sameShortcut(store[key], value)) store[key] = value
+}
+function captureShortcut(value: string) {
+  if (!recording.value) return
+  // Some PC keyboards also produce F13–F15 for Print Screen/Scroll Lock/Pause. Give the
+  // raw key event priority, retaining the function key on keyboards without it.
+  clearTimeout(aliasTimer)
+  if (isMac && isPcFunctionAlias(value)) {
+    aliasTimer = setTimeout(() => commit(value), 90)
+  } else {
+    commit(value)
+  }
 }
 function keyDown(event: KeyboardEvent, key: AppShortcutKey) {
   if (recording.value !== key || event.isComposing) return
@@ -73,15 +102,24 @@ function keyDown(event: KeyboardEvent, key: AppShortcutKey) {
     return
   }
   if (event.repeat) return
-  const standard = standardKeys.find(item => item.eventKey === event.code)
-  if (!standard || (!modified && !/^F\d+$/.test(event.code))) return
+  if (isMac && !modified && (isShortcutHidKey(event.code) || isShortcutHidKey(event.key)
+    || ['LaunchApplication1', 'LaunchApplication2', 'LaunchMediaPlayer'].includes(event.key))) {
+    return
+  }
+  const standard = findShortcutKey(event)
+  if (!standard) {
+    if (!modifierKeys.some(item => item.eventKey === event.key.replace('Meta', 'Command'))) {
+      feedback.value = text('unavailable')
+    }
+    return
+  }
   const parts = []
   if (event.ctrlKey) parts.push('Control')
   if (event.altKey) parts.push('Alt')
   if (event.shiftKey) parts.push('Shift')
   if (event.metaKey) parts.push('Command')
   parts.push(standard.tauriKey!)
-  commit(parts.join('+'))
+  captureShortcut(parts.join('+'))
 }
 function clear(key: AppShortcutKey) {
   endRecording()
@@ -92,7 +130,15 @@ function clear(key: AppShortcutKey) {
 useEventListener(window, 'blur', endRecording)
 useEventListener(window, 'pagehide', endRecording)
 const listeners = [
-  listen<string>(SHORTCUT_CAPTURED, ({ payload }) => commit(payload)),
+  listen<string>(SHORTCUT_CAPTURED, ({ payload }) => captureShortcut(payload)),
+  listen<string>(SHORTCUT_HID_RECORDED, ({ payload }) => {
+    if (isMac && isShortcutHidKey(payload)) captureShortcut(payload)
+  }),
+  listen<HidStatus>(SHORTCUT_HID_STATUS, ({ payload }) => {
+    if (!recording.value) return
+    const messages = { permissionDenied: 'hidPermission', noDevice: 'hidNoDevice', unavailable: 'hidUnavailable' } as const
+    hidFeedback.value = payload && payload in messages ? text(messages[payload as keyof typeof messages]) : ''
+  }),
   listen<AppShortcutKey>(SHORTCUT_FAILED, () => {
     feedback.value = text('unavailable')
   }),
@@ -133,8 +179,9 @@ onScopeDispose(() => {
             :class="{ recording: recording === key }"
             type="button"
             @blur="endRecording"
-            @click="beginRecording(key)"
+            @click="beginRecording(key, $event)"
             @keydown="keyDown($event, key)"
+            @mousedown.prevent
           >
             {{ recording === key ? text('press') : store[key] ? format(store[key]) : text('unset') }}
           </button>
@@ -153,11 +200,11 @@ onScopeDispose(() => {
         </div>
       </div>
       <p
-        v-if="feedback"
+        v-if="feedback || hidFeedback"
         class="shortcut-feedback"
         role="status"
       >
-        {{ feedback }}
+        {{ feedback || hidFeedback }}
       </p>
     </div>
   </section>

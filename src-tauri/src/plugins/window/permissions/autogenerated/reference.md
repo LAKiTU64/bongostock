@@ -7,6 +7,7 @@ Default permissions for the plugin
 - `allow-show-window`
 - `allow-show-labeled-window`
 - `allow-hide-window`
+- `allow-close-for-boss-key`
 - `allow-set-always-on-top`
 - `allow-set-taskbar-visibility`
 - `allow-request-window-recovery`
@@ -24,6 +25,32 @@ Default permissions for the plugin
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`custom-window:allow-close-for-boss-key`
+
+</td>
+<td>
+
+Enables the close_for_boss_key command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-close-for-boss-key`
+
+</td>
+<td>
+
+Denies the close_for_boss_key command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>

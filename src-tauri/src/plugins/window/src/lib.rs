@@ -8,6 +8,8 @@ mod commands;
 mod display_changes;
 mod hidden_panel;
 mod page_gesture;
+#[cfg(target_os = "macos")]
+mod panel_hover;
 
 pub use commands::*;
 
@@ -25,11 +27,20 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::display_work_areas,
             commands::show_labeled_window,
             commands::hide_window,
+            commands::close_for_boss_key,
             commands::set_always_on_top,
             commands::set_taskbar_visibility,
             page_gesture::set_page_gesture,
             hidden_panel::hide_panel_for_hour,
         ])
+        .on_webview_ready(|_webview| {
+            #[cfg(target_os = "macos")]
+            if _webview.label() == commands::STOCK_PANEL_WINDOW_LABEL {
+                if let Err(error) = panel_hover::install(&_webview) {
+                    eprintln!("could not install stock panel pointer tracking: {error}");
+                }
+            }
+        })
         .on_event(|app, event| {
             #[cfg(target_os = "macos")]
             match event {
@@ -42,6 +53,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     app.state::<hidden_panel::HiddenPanel>().did_destroy();
                     #[cfg(target_os = "macos")]
                     page_gesture::macos::clear();
+                } else if label == commands::PREFERENCE_WINDOW_LABEL {
+                    app.state::<hidden_panel::HiddenPanel>().did_destroy();
                 }
             }
         })

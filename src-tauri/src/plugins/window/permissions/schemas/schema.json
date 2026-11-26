@@ -295,6 +295,18 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the close_for_boss_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-close-for-boss-key",
+          "markdownDescription": "Enables the close_for_boss_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the close_for_boss_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-close-for-boss-key",
+          "markdownDescription": "Denies the close_for_boss_key command without any pre-configured scope."
+        },
+        {
           "description": "Enables the display_work_areas command without any pre-configured scope.",
           "type": "string",
           "const": "allow-display-work-areas",
@@ -427,10 +439,10 @@
           "markdownDescription": "Denies the take_window_recovery_request command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`\n- `allow-hide-panel-for-hour`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-close-for-boss-key`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`\n- `allow-hide-panel-for-hour`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`\n- `allow-hide-panel-for-hour`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-close-for-boss-key`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`\n- `allow-hide-panel-for-hour`"
         }
       ]
     }

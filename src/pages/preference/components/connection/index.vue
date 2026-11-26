@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { emit } from '@tauri-apps/api/event'
+import { InputNumber } from 'antdv-next'
 import { computed, ref, watch } from 'vue'
 
 import ProList from '@/components/pro-list/index.vue'
@@ -13,6 +14,7 @@ import { useGeneralText } from '../general/messages'
 const text = useGeneralText()
 const market = useMarketStore()
 const address = ref(market.external.baseUrl)
+const timeoutDraft = ref<number | null>(market.external.timeoutMs)
 const token = ref('')
 const hasToken = computed(() => keychainEnabled ? tokenStored.value : Boolean(market.bearerToken))
 const tokenBusy = ref(false)
@@ -22,6 +24,7 @@ const failed = ref(false)
 let pendingToken: Promise<boolean> | undefined
 
 watch(() => market.external.baseUrl, value => address.value = value)
+watch(() => market.external.timeoutMs, value => timeoutDraft.value = value)
 function broadcast() {
   return emit(LISTEN_KEY.MARKET_SETTINGS_CHANGED, market.snapshot())
 }
@@ -31,12 +34,9 @@ function commitAddress() {
   market.external.baseUrl = address.value
   void broadcast()
 }
-function commitTimeout(event: Event) {
-  const input = event.target as HTMLInputElement
-  const timeout = Number.isFinite(input.valueAsNumber)
-    ? Math.max(1000, Math.min(30000, Math.round(input.valueAsNumber)))
-    : market.external.timeoutMs
-  input.value = String(timeout)
+function commitTimeout() {
+  const timeout = timeoutDraft.value ?? market.external.timeoutMs
+  timeoutDraft.value = timeout
   if (market.external.timeoutMs === timeout) return
   market.external.timeoutMs = timeout
   void broadcast()
@@ -153,19 +153,17 @@ async function testConnection() {
     </div>
     <div class="settings-row">
       <label for="gateway-timeout">{{ text('timeout') }}</label>
-      <div class="gateway-timeout">
-        <input
-          id="gateway-timeout"
-          class="settings-input"
-          max="30000"
-          min="1000"
-          step="1"
-          type="number"
-          :value="market.external.timeoutMs"
-          @change="commitTimeout"
-        >
-        <span>{{ text('milliseconds') }}</span>
-      </div>
+      <InputNumber
+        id="gateway-timeout"
+        v-model:value="timeoutDraft"
+        :max="30000"
+        :min="1000"
+        :precision="0"
+        :suffix="text('milliseconds')"
+        @blur="commitTimeout"
+        @press-enter="commitTimeout"
+        @step="commitTimeout"
+      />
     </div>
     <div class="settings-row">
       <span id="connection-label">{{ text('connection') }}</span>
@@ -201,8 +199,7 @@ async function testConnection() {
 .gateway-controls {
   width: min(100%, 19rem);
 }
-.gateway-controls,
-.gateway-timeout {
+.gateway-controls {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -210,14 +207,6 @@ async function testConnection() {
 .gateway-controls input {
   flex: 1;
   min-width: 0;
-}
-.gateway-timeout input {
-  width: 85px;
-}
-.gateway-timeout span,
-.gateway-note {
-  color: var(--settings-muted);
-  font-size: 12px;
 }
 .gateway-icon {
   display: inline-grid;
@@ -228,6 +217,8 @@ async function testConnection() {
   padding: 0;
 }
 .gateway-note {
+  color: var(--settings-muted);
+  font-size: 12px;
   margin: 0;
   padding: 0 16px 9px;
   overflow-wrap: anywhere;

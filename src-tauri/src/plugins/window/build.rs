@@ -7,6 +7,7 @@ const COMMANDS: &[&str] = &[
     "reveal_recovered_main",
     "display_work_areas",
     "hide_window",
+    "close_for_boss_key",
     "set_always_on_top",
     "set_taskbar_visibility",
 ];

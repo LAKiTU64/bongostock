@@ -9,7 +9,6 @@ export const LISTEN_KEY = {
   GAMEPAD_CHANGED: 'gamepad-changed',
   WATCHLIST_CHANGED: 'watchlist-changed',
   STOCK_PANEL_SETTINGS_CHANGED: 'stock-panel-settings-changed',
-  STOCK_PANEL_PIN_CHANGED: 'stock-panel-pin-changed',
   MARKET_SETTINGS_CHANGED: 'market-settings-changed',
   BILI_SESSION_CHANGED: 'bili-session-changed',
   AUDIO_OUTPUT_CHANGED: 'audio-output-changed',

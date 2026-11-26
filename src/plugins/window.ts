@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 import { LISTEN_KEY, WINDOW_LABEL } from '../constants'
 
@@ -10,6 +10,7 @@ const COMMAND = {
   SHOW_WINDOW: 'plugin:custom-window|show_window',
   SHOW_LABELED_WINDOW: 'plugin:custom-window|show_labeled_window',
   HIDE_WINDOW: 'plugin:custom-window|hide_window',
+  CLOSE_FOR_BOSS_KEY: 'plugin:custom-window|close_for_boss_key',
   HIDE_PANEL_FOR_HOUR: 'plugin:custom-window|hide_panel_for_hour',
   SET_ALWAYS_ON_TOP: 'plugin:custom-window|set_always_on_top',
   SET_TASKBAR_VISIBILITY: 'plugin:custom-window|set_taskbar_visibility',
@@ -46,8 +47,33 @@ export function hideWindow(label?: WindowLabel) {
   return invoke(COMMAND.HIDE_WINDOW)
 }
 
-export function hidePanelForHour() {
-  return invoke<void>(COMMAND.HIDE_PANEL_FOR_HOUR)
+export function hidePanelWithRetention(retentionMinutes: number) {
+  return invoke<void>(COMMAND.HIDE_PANEL_FOR_HOUR, { retentionMinutes })
+}
+
+let toggleRevision = 0
+
+export function closeForBossKey() {
+  toggleRevision += 1
+  return invoke<void>(COMMAND.CLOSE_FOR_BOSS_KEY)
+}
+
+/** Only the main webview starts these toggles and handles the boss key. */
+export async function toggleAuxiliaryWindow(label: WindowLabel, close: () => Promise<unknown>) {
+  const revision = toggleRevision
+  let visible = false
+  try {
+    const window = await WebviewWindow.getByLabel(label)
+    if (revision !== toggleRevision) return
+    if (window) visible = await window.isVisible()
+  } catch (error) {
+    // Destruction may also reject an in-flight visibility query.
+    if (revision === toggleRevision) throw error
+    return
+  }
+  if (revision !== toggleRevision) return
+  if (visible) await close()
+  else await showWindow(label)
 }
 
 export function setAlwaysOnTop(alwaysOnTop: boolean) {

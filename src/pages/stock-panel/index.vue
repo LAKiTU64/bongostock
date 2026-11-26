@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { LogicalSize } from '@tauri-apps/api/dpi'
-import { emit } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useEventListener } from '@vueuse/core'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -14,7 +14,7 @@ import { positionStockPanelNearPet } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
-import { hidePanelForHour as hideNativePanelForHour, hideWindow, showWindow } from '@/plugins/window'
+import { hidePanelWithRetention, hideWindow, showWindow } from '@/plugins/window'
 import { installPanelRecovery, logWindowError, recoveringPanel } from '@/plugins/windowRecovery'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
@@ -71,6 +71,8 @@ let groupTabsDrag: {
   groupId?: string
 } | undefined
 let suppressGroupTabClick = false
+let unlistenShow: (() => void) | undefined
+let focusCheckTimer: ReturnType<typeof setTimeout> | undefined
 let unlistenFocus: (() => void) | undefined
 let unlistenClose: (() => void) | undefined
 let unlistenRecovery: (() => void) | undefined
@@ -186,12 +188,11 @@ watch(() => [
   watchlistStore.panel.dimmedOpacity,
 ], resetIdleFade)
 
-useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
+function handleShowRequest(payload: string) {
   if (payload !== WINDOW_LABEL.STOCK_PANEL) return
 
   const wasDeliberatelyHidden = hiddenForPlayback.value
   if (recoveringPanel.value && !wasDeliberatelyHidden) return
-  focusRevision += 1
   void windowPositionQueue(async () => {
     if (recoveringPanel.value && !wasDeliberatelyHidden) return
     if (wasDeliberatelyHidden && !hiddenForPlayback.value) return
@@ -202,6 +203,7 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
       panelLifecycle.value = 'active'
       resetIdleFade()
       startAutoRefresh()
+      scheduleFocusCheck()
       return
     }
     if (panelLifecycle.value === 'active') return
@@ -222,11 +224,24 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
     resetIdleFade()
     void refreshQuotes()
     startAutoRefresh()
+    scheduleFocusCheck()
   }).catch(error => logWindowError('open stock panel', error))
+}
+
+// AppKit also reports movement over the visible panel while another app has focus.
+useTauriListen('stock-panel-pointer-activity', () => {
+  if (panelLifecycle.value === 'active' && !closeInProgress) resetIdleFade()
 })
 
 useTauriListen<StockPanelCloseReason>(LISTEN_KEY.CLOSE_STOCK_PANEL, ({ payload }) => {
-  void closePanel(payload === 'retain')
+  if (payload === 'boss') {
+    funPanelRef.value?.pause()
+    void appWindow.emitTo(WINDOW_LABEL.STOCK_PANEL, 'stock-panel-playback-stopped')
+  } else if (payload === 'blur') {
+    scheduleFocusCheck()
+  } else {
+    void closePanel(payload === 'retain')
+  }
 })
 
 useTauriListen<WatchlistGroup[] | string[]>(LISTEN_KEY.WATCHLIST_CHANGED, ({ payload }) => {
@@ -260,28 +275,45 @@ useEventListener('keydown', (event) => {
   void closePanel(false)
 })
 
+// Native show/focus requests can resolve before the key-window handoff settles.
+// Recheck once after every reveal (including a retained player) and on blur.
+function scheduleFocusCheck() {
+  clearTimeout(focusCheckTimer)
+  const revision = ++focusRevision
+  const eligible = () => revision === focusRevision && panelLifecycle.value === 'active'
+    && !isPinned.value && !recoveringPanel.value && !closeInProgress
+
+  if (!eligible()) return
+  focusCheckTimer = setTimeout(() => {
+    void windowPositionQueue(async () => {
+      if (!eligible()) return
+      const main = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
+      const [visible, mainFocused, panelFocused] = await Promise.all([
+        appWindow.isVisible(),
+        main?.isFocused() ?? false,
+        appWindow.isFocused(),
+      ])
+      if (eligible() && visible && !mainFocused && !panelFocused) await performClosePanel(true)
+    }).catch(error => logWindowError('check panel focus', error))
+  }, 80)
+}
+
 onMounted(async () => {
-  // A newly created hidden panel cannot receive the initial show event until
-  // Vue has mounted its listeners. Signal readiness from the webview itself.
-  unlistenRecovery = await installPanelRecovery()
-  await showWindow(WINDOW_LABEL.STOCK_PANEL)
-  resetIdleFade()
-  unlistenFocus = await appWindow.onFocusChanged(async ({ payload: focused }) => {
-    const revision = ++focusRevision
-    if (focused || recoveringPanel.value || isPinned.value || closeInProgress || hiddenForPlayback.value || !await appWindow.isVisible()) return
-
-    const mainWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
-    const [mainFocused, panelFocused] = await Promise.all([
-      mainWindow?.isFocused() ?? false,
-      appWindow.isFocused(),
-    ])
-
-    if (revision === focusRevision && !mainFocused && !panelFocused && !isPinned.value) void closePanel(true)
+  unlistenFocus = await appWindow.onFocusChanged(({ payload: focused }) => {
+    if (focused) {
+      focusRevision += 1
+      clearTimeout(focusCheckTimer)
+    } else {
+      scheduleFocusCheck()
+    }
   })
-
   unlistenClose = await appWindow.onCloseRequested(() => {
     void closePanel(false)
   })
+  unlistenShow = await listen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => handleShowRequest(payload))
+  unlistenRecovery = await installPanelRecovery()
+  await showWindow(WINDOW_LABEL.STOCK_PANEL)
+  resetIdleFade()
 
   if (await appWindow.isVisible()) {
     void refreshQuotes()
@@ -290,6 +322,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  focusRevision += 1
+  clearTimeout(focusCheckTimer)
+  unlistenShow?.()
   clearTimeout(idleFadeTimer)
   stopAutoRefresh()
   detailAbortController?.abort()
@@ -613,7 +648,7 @@ function handleRefresh() {
   void refreshQuotes()
 }
 
-function hidePanelForHour() {
+function hidePanel() {
   return windowPositionQueue(async () => {
     if (recoveringPanel.value || panelLifecycle.value !== 'active') return
     focusRevision += 1
@@ -623,7 +658,7 @@ function hidePanelForHour() {
     // Deliver the prop before hiding causes WebKit's visibilitychange.
     await nextTick()
     try {
-      await hideNativePanelForHour()
+      await hidePanelWithRetention(watchlistStore.panel.hiddenRetentionMinutes)
     } catch (error) {
       if (await appWindow.isVisible().catch(() => false)) {
         panelLifecycle.value = 'active'
@@ -679,7 +714,6 @@ async function performClosePanel(retainState: boolean) {
 function setPinMode(value: PinMode) {
   pinMode.value = value
   resetIdleFade()
-  void emit(LISTEN_KEY.STOCK_PANEL_PIN_CHANGED, isPinned.value)
 }
 
 function closeDetail() {
@@ -1031,7 +1065,7 @@ function buildKlineChart(klines: StockKline[]) {
     }"
     @pointerdown="resetIdleFade"
     @pointerenter="resetIdleFade"
-    @pointermove.passive="resetIdleFade"
+    @pointermove.capture.passive="resetIdleFade"
     @wheel.passive="resetIdleFade"
   >
     <nav
@@ -1099,7 +1133,7 @@ function buildKlineChart(klines: StockKline[]) {
         class="toolbar-action hide-button"
         title="隐藏浮窗"
         type="button"
-        @click.stop="hidePanelForHour"
+        @click.stop="hidePanel"
       >
         <span
           aria-hidden="true"

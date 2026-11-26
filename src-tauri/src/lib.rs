@@ -1,6 +1,16 @@
 mod core;
 mod utils;
 
+#[cfg(target_os = "macos")]
+use core::shortcut_hid::set_shortcut_hid_keys;
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn set_shortcut_hid_keys(keys: Vec<String>, recording: bool) -> &'static str {
+    let _ = (keys, recording);
+    "unavailable"
+}
+
 use core::{
     device::{request_input_monitoring_access, set_mouse_move_enabled, start_device_listening},
     gamepad::{start_gamepad_listing, stop_gamepad_listing},
@@ -51,6 +61,7 @@ pub fn run() {
             start_device_listening,
             request_input_monitoring_access,
             set_mouse_move_enabled,
+            set_shortcut_hid_keys,
             start_gamepad_listing,
             stop_gamepad_listing,
             open_macos_accessibility_settings,

@@ -1,14 +1,16 @@
 import { emitTo, listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { onScopeDispose, toRef } from 'vue'
+import { onScopeDispose, ref, toRef } from 'vue'
 
 import { WINDOW_LABEL } from '@/constants'
-import { hideWindow, showWindow } from '@/plugins/window'
+import { closeForBossKey, hideWindow, toggleAuxiliaryWindow } from '@/plugins/window'
 import { useCatStore } from '@/stores/cat'
 import { useShortcutStore } from '@/stores/shortcut'
+import { isMac } from '@/utils/platform'
+import { isPcFunctionAlias, isShortcutHidKey, shortcutAlias } from '@/utils/shortcutHid'
 
 import { useKeyPress } from './useKeyPress'
-import { closeStockPanel } from './useStockPanel'
+import { useShortcutHid } from './useShortcutHid'
 
 export const appShortcutKeys = ['visibleCat', 'visiblePreference', 'penetrable', 'alwaysOnTop', 'bossKey'] as const
 export type AppShortcutKey = typeof appShortcutKeys[number]
@@ -20,25 +22,26 @@ export const SHORTCUT_FAILED = 'settings-shortcut-failed'
 export function useAppShortcuts() {
   const shortcuts = useShortcutStore()
   const cat = useCatStore()
-  let recording = false
-  const listening = listen<boolean>(SHORTCUT_RECORDING, ({ payload }) => {
-    recording = payload
+  const recording = ref(false)
+  let lastCapture: { alias: string, time: number } | undefined
+  const listening = listen<boolean | { captured: string }>(SHORTCUT_RECORDING, ({ payload }) => {
+    recording.value = payload === true
+    if (typeof payload === 'object') lastCapture = { alias: shortcutAlias(payload.captured), time: performance.now() }
   })
   onScopeDispose(() => {
     void listening.then(off => off())
   })
 
-  async function toggleSettings() {
-    const window = await WebviewWindow.getByLabel(WINDOW_LABEL.PREFERENCE)
-    if (window && await window.isVisible()) await hideWindow(WINDOW_LABEL.PREFERENCE)
-    else await showWindow(WINDOW_LABEL.PREFERENCE)
-  }
   const actions = {
     visibleCat: () => {
       cat.window.visible = !cat.window.visible
     },
-    visiblePreference: toggleSettings,
-    bossKey: () => closeStockPanel('discard'),
+    visiblePreference: () => toggleAuxiliaryWindow(WINDOW_LABEL.PREFERENCE, () => hideWindow(WINDOW_LABEL.PREFERENCE)),
+    bossKey: () => {
+      const closing = closeForBossKey()
+      cat.window.visible = false
+      return closing
+    },
     penetrable: () => {
       cat.window.passThrough = !cat.window.passThrough
     },
@@ -46,22 +49,32 @@ export function useAppShortcuts() {
       cat.window.alwaysOnTop = !cat.window.alwaysOnTop
     },
   }
-  for (const key of appShortcutKeys) {
-    useKeyPress(toRef(shortcuts, key), async () => {
-      // A registered combination can be consumed by the OS before the recorder sees a keydown.
-      if (recording) {
-        const window = await WebviewWindow.getByLabel(WINDOW_LABEL.PREFERENCE)
-        if (window && await window.isFocused()) {
-          await emitTo(WINDOW_LABEL.PREFERENCE, SHORTCUT_CAPTURED, shortcuts[key])
-          return
-        }
-        recording = false
+  async function runShortcut(key: AppShortcutKey) {
+    const value = shortcuts[key]
+    if (recording.value) {
+      const window = await WebviewWindow.getByLabel(WINDOW_LABEL.PREFERENCE)
+      if (window && await window.isFocused()) {
+        await emitTo(WINDOW_LABEL.PREFERENCE, SHORTCUT_CAPTURED, value)
+        return
       }
-      await actions[key]()
-    }, (_value, previous) => {
+      recording.value = false
+    }
+    const alias = shortcutAlias(value)
+    if (isMac && isPcFunctionAlias(alias) && lastCapture?.alias === alias
+      && performance.now() - lastCapture.time < 200) {
+      return
+    }
+    await actions[key]()
+  }
+  useShortcutHid(() => appShortcutKeys.map(key => shortcuts[key]), recording, (value) => {
+    const key = appShortcutKeys.find(key => shortcuts[key] === value)
+    if (key) void runShortcut(key)
+  })
+  for (const key of appShortcutKeys) {
+    useKeyPress(toRef(shortcuts, key), () => runShortcut(key), (_value, previous) => {
       // Keep an existing setting on cold-start failures. Roll back unsuccessful edits.
       if (previous !== undefined) shortcuts[key] = previous
       void emitTo(WINDOW_LABEL.PREFERENCE, SHORTCUT_FAILED, key)
-    })
+    }, value => isMac && isShortcutHidKey(value))
   }
 }

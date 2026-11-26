@@ -2,4 +2,4 @@
 
 [default]
 description = "Default permissions for the plugin"
-permissions = ["allow-show-window", "allow-show-labeled-window", "allow-hide-window", "allow-set-always-on-top", "allow-set-taskbar-visibility", "allow-request-window-recovery", "allow-take-window-recovery-request", "allow-reveal-recovered-main", "allow-display-work-areas", "allow-set-page-gesture", "allow-hide-panel-for-hour"]
+permissions = ["allow-show-window", "allow-show-labeled-window", "allow-hide-window", "allow-close-for-boss-key", "allow-set-always-on-top", "allow-set-taskbar-visibility", "allow-request-window-recovery", "allow-take-window-recovery-request", "allow-reveal-recovered-main", "allow-display-work-areas", "allow-set-page-gesture", "allow-hide-panel-for-hour"]

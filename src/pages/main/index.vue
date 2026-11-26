@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { LogicalSize } from '@tauri-apps/api/dpi'
 import { Menu, PredefinedMenuItem } from '@tauri-apps/api/menu'
-import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import CompactCat from '@/components/CompactCat.vue'
 import { useAppMenu } from '@/composables/useAppMenu'
 import { useAppShortcuts } from '@/composables/useAppShortcuts'
 import { useDevice } from '@/composables/useDevice'
-import { closeStockPanel, toggleStockPanel } from '@/composables/useStockPanel'
-import { useTauriListen } from '@/composables/useTauriListen'
+import { closeStockPanel, hidePetAndClosePanel, toggleStockPanel } from '@/composables/useStockPanel'
 import { useTray } from '@/composables/useTray'
-import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
-import { hideWindow, setAlwaysOnTop, setTaskbarVisibility, showWindow } from '@/plugins/window'
+import { setAlwaysOnTop, setTaskbarVisibility, showWindow } from '@/plugins/window'
 import { installWindowRecovery, logWindowError, recoveringWindows } from '@/plugins/windowRecovery'
 import { useCatStore } from '@/stores/cat'
 import { useGeneralStore } from '@/stores/general.ts'
@@ -51,7 +49,6 @@ let pointerStart: { x: number, y: number } | undefined
 let isDragging = false
 let dragResetTimer: ReturnType<typeof setTimeout> | undefined
 let contextMenuOpen = false
-let panelFocusTimer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 const listeners: (() => void)[] = []
 function keepListener(unlisten: () => void) {
@@ -59,7 +56,6 @@ function keepListener(unlisten: () => void) {
   else listeners.push(unlisten)
   return !disposed
 }
-const panelPinned = ref(false)
 
 const DRAG_THRESHOLD = 5
 
@@ -69,7 +65,6 @@ onUnmounted(() => {
   disposed = true
   clearTimeout(leftPulseTimer)
   clearTimeout(rightPulseTimer)
-  clearTimeout(panelFocusTimer)
   clearTimeout(dragResetTimer)
   listeners.forEach(unlisten => unlisten())
 })
@@ -84,15 +79,11 @@ onMounted(async () => {
   if (!keepListener(unlistenScale)) return
 
   keepListener(await appWindow.onFocusChanged(({ payload: focused }) => {
-    if (!disposed && !focused && !contextMenuOpen) scheduleCloseStockPanelIfUnfocused()
+    if (!focused) requestPanelFocusCheck()
   }))
 })
 
 watch([() => catStore.window.scale, () => catStore.skin], setCompactWindowSize)
-
-useTauriListen<boolean>(LISTEN_KEY.STOCK_PANEL_PIN_CHANGED, ({ payload }) => {
-  panelPinned.value = payload
-})
 
 watch(() => catStore.interactionCount, (count) => {
   const useLeftPaw = count % 2 === 1
@@ -116,8 +107,7 @@ watch(() => catStore.window.visible, async (value) => {
     return
   }
 
-  hideWindow()
-  void closeStockPanel('discard')
+  await hidePetAndClosePanel()
 })
 
 watch(() => catStore.window.passThrough, (value) => {
@@ -180,26 +170,8 @@ async function setCompactWindowSize() {
   }).catch(error => logWindowError('size pet window', error))
 }
 
-function scheduleCloseStockPanelIfUnfocused() {
-  clearTimeout(panelFocusTimer)
-  panelFocusTimer = setTimeout(() => void closeStockPanelIfUnfocused(), 80)
-}
-
-async function closeStockPanelIfUnfocused() {
-  if (contextMenuOpen || recoveringWindows.value || panelPinned.value) return
-
-  const panel = await WebviewWindow.getByLabel(WINDOW_LABEL.STOCK_PANEL)
-
-  if (!panel || !await panel.isVisible()) return
-
-  const [mainFocused, panelFocused] = await Promise.all([
-    appWindow.isFocused(),
-    panel.isFocused(),
-  ])
-
-  if (!mainFocused && !panelFocused && !panelPinned.value) {
-    await closeStockPanel('retain')
-  }
+function requestPanelFocusCheck() {
+  if (!disposed && !contextMenuOpen && !recoveringWindows.value) void closeStockPanel('blur')
 }
 
 async function handleContextmenu(event: MouseEvent) {
@@ -226,7 +198,7 @@ async function handleContextmenu(event: MouseEvent) {
     await menu.popup()
   } finally {
     contextMenuOpen = false
-    scheduleCloseStockPanelIfUnfocused()
+    requestPanelFocusCheck()
   }
 
   // Restore always-on-top after the menu is closed

@@ -128,7 +128,21 @@ pub fn show_main_window(app_handle: &AppHandle) {
 }
 
 pub fn show_preference_window(app_handle: &AppHandle) {
-    let _ = ensure_window(app_handle, PREFERENCE_WINDOW_LABEL);
+    let app = app_handle.clone();
+    spawn(async move {
+        let _ = crate::hidden_panel::open_preferences(&app).await;
+    });
+}
+
+#[command]
+pub async fn close_for_boss_key<R: Runtime>(window: WebviewWindow<R>) -> Result<(), String> {
+    if window.label() != MAIN_WINDOW_LABEL {
+        return Err("only the main window manages the boss key".into());
+    }
+    let app = window.app_handle().clone();
+    let pet = hide_window(window).await;
+    let secondary = crate::hidden_panel::discard_for_boss_key(&app).await;
+    pet.and(secondary)
 }
 
 #[command]
@@ -153,14 +167,21 @@ pub async fn show_labeled_window<R: Runtime>(
     if label == STOCK_PANEL_WINDOW_LABEL {
         return crate::hidden_panel::open(&app_handle, window.label()).await;
     }
-    ensure_window(&app_handle, &label)
+    if label == PREFERENCE_WINDOW_LABEL {
+        return crate::hidden_panel::open_preferences(&app_handle).await;
+    }
+    Err(format!("unsupported window label: {label}"))
 }
 
 pub fn reveal_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) {
     let Some(window) = app_handle.get_webview_window(label) else {
         return;
     };
+    reveal_existing_window(window)
+}
 
+fn reveal_existing_window<R: Runtime>(window: WebviewWindow<R>) {
+    let label = window.label();
     let target = EventTarget::labeled(label);
     let _ = window.emit_to(target, SHOW_WINDOW_EVENT, label);
 
@@ -171,7 +192,7 @@ pub fn reveal_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) {
         return;
     }
 
-    let app_handle = app_handle.clone();
+    let app_handle = window.app_handle().clone();
 
     spawn(async move {
         show_window(app_handle, window, None, None).await;
@@ -196,18 +217,16 @@ pub(crate) fn ensure_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) 
         .find(|config| config.label == label)
         .cloned()
         .ok_or_else(|| format!("missing window configuration: {label}"))?;
-    let ready_app_handle = app_handle.clone();
-    let ready_label = label.to_owned();
     let first_page_load = Arc::new(AtomicBool::new(true));
 
     WebviewWindowBuilder::from_config(app_handle, &config)
         .map_err(|error| error.to_string())?
-        .on_page_load(move |_window: WebviewWindow<R>, payload| {
+        .on_page_load(move |window: WebviewWindow<R>, payload| {
             if payload.event() == PageLoadEvent::Finished
                 && first_page_load.swap(false, Ordering::Relaxed)
-                && ready_label != STOCK_PANEL_WINDOW_LABEL
+                && window.label() != STOCK_PANEL_WINDOW_LABEL
             {
-                reveal_window(&ready_app_handle, &ready_label);
+                reveal_existing_window(window);
             }
         })
         .build()

@@ -11,6 +11,7 @@ export function useKeyPress(
   shortcut: Ref<string | undefined>,
   callback: ShortcutHandler,
   onFailure?: (value: string, fallback: string | undefined) => void,
+  registeredElsewhere?: (value: string) => boolean,
 ) {
   const owned = new Set<string>()
   let disposed = false
@@ -21,7 +22,7 @@ export function useKeyPress(
       if (wanted !== value) return
 
       // Keep the last working binding until its replacement is registered.
-      if (wanted && !owned.has(wanted)) {
+      if (wanted && !registeredElsewhere?.(wanted) && !owned.has(wanted)) {
         if (await isRegistered(wanted)) throw new Error('Shortcut is already registered')
         await register(wanted, (event) => {
           if (!disposed && shortcut.value === wanted && event.state === 'Pressed') callback(event)
@@ -35,7 +36,7 @@ export function useKeyPress(
       }
     }).catch((error) => {
       if (disposed || shortcut.value !== value) return
-      if (onFailure) onFailure(value, previous === undefined ? undefined : [...owned][0] ?? '')
+      if (onFailure) onFailure(value, previous === undefined ? undefined : [...owned][0] ?? (registeredElsewhere?.(previous) ? previous : ''))
       else console.warn('[bongostock] Unable to register shortcut', error)
     })
   }

@@ -185,9 +185,9 @@ pnpm tauri build --target universal-apple-darwin --bundles app,dmg
 
 ## 6. 连接 BongoStock Gateway
 
-打开“偏好设置 → 连接”并填写：
+在「设置 → 连接」中填入网关的 token 即可连接。
 
-- 服务地址：`https://<服务器域名或公网 IP>`；
+- 服务地址：默认 `https://123.57.156.148`，使用自建网关时改为对应地址；
 - Bearer Token：服务端 `/etc/bongostock-gateway.env` 中的 `BONGOSTOCK_TOKEN`；
 - 超时：默认 8,000 ms。
 

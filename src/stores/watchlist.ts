@@ -15,6 +15,7 @@ export interface WatchlistGroup {
 export interface StockPanelSettings {
   fadeDelaySeconds: number
   dimmedOpacity: number
+  hiddenRetentionMinutes: number
   stateRetentionSeconds: number
 }
 
@@ -26,6 +27,9 @@ export const MIN_FADE_DELAY_SECONDS = 1
 export const MAX_FADE_DELAY_SECONDS = 300
 export const MIN_DIMMED_OPACITY = 10
 export const MAX_DIMMED_OPACITY = 100
+export const DEFAULT_HIDDEN_RETENTION_MINUTES = 60
+export const MIN_HIDDEN_RETENTION_MINUTES = 1
+export const MAX_HIDDEN_RETENTION_MINUTES = 1440
 export const MIN_STATE_RETENTION_SECONDS = 0
 export const MAX_STATE_RETENTION_SECONDS = 300
 
@@ -58,6 +62,11 @@ function sanitizePanelSettings(values: Partial<StockPanelSettings>) {
       Number.isFinite(values.dimmedOpacity) ? Number(values.dimmedOpacity) : 28,
       MIN_DIMMED_OPACITY,
       MAX_DIMMED_OPACITY,
+    ),
+    hiddenRetentionMinutes: clamp(
+      Number.isFinite(values.hiddenRetentionMinutes) ? Math.round(Number(values.hiddenRetentionMinutes)) : DEFAULT_HIDDEN_RETENTION_MINUTES,
+      MIN_HIDDEN_RETENTION_MINUTES,
+      MAX_HIDDEN_RETENTION_MINUTES,
     ),
     stateRetentionSeconds: clamp(
       Number.isFinite(values.stateRetentionSeconds) ? Number(values.stateRetentionSeconds) : 30,
@@ -115,6 +124,7 @@ export const useWatchlistStore = defineStore('watchlist', () => {
   const panel = reactive<StockPanelSettings>({
     fadeDelaySeconds: 2,
     dimmedOpacity: 28,
+    hiddenRetentionMinutes: DEFAULT_HIDDEN_RETENTION_MINUTES,
     stateRetentionSeconds: 30,
   })
   // 云同步状态：lastSyncedAt 为上次与云端对齐的服务器时间戳，dirty 表示本地有未推送的变更。

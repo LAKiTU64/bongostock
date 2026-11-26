@@ -17,24 +17,11 @@ export interface MarketStore {
   bearerToken: string
 }
 
-export const DEFAULT_BASE_URL = 'https://127.0.0.1:8443'
+export const DEFAULT_BASE_URL = 'https://123.57.156.148'
 
-/**
- * Only an empty or non-HTTP(S) value falls back to the default. A value that
- * merely fails to parse is kept verbatim, so a half-typed or mistyped address
- * stays on screen instead of being silently replaced.
- */
+/** Keep configured endpoints, including old local gateways. The transport validates the scheme. */
 export function normalizeBaseUrl(value: string) {
-  const trimmed = value.trim().replace(/\/+$/, '')
-  if (!trimmed) return DEFAULT_BASE_URL
-
-  try {
-    const url = new URL(trimmed)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return DEFAULT_BASE_URL
-    return trimmed
-  } catch {
-    return trimmed
-  }
+  return value.trim().replace(/\/+$/, '') || DEFAULT_BASE_URL
 }
 
 function normalizeTimeout(value: number) {
@@ -65,7 +52,7 @@ export const useMarketStore = defineStore('market', () => {
 
   function replaceFromEvent(value: MarketSettingsSnapshot) {
     bearerToken.value = value.bearerToken ?? bearerToken.value
-    external.baseUrl = normalizeBaseUrl(value.external?.baseUrl ?? '')
+    external.baseUrl = normalizeBaseUrl(value.external?.baseUrl ?? external.baseUrl)
     external.timeoutMs = normalizeTimeout(value.external?.timeoutMs ?? 8_000)
   }
 

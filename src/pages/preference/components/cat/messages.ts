@@ -16,6 +16,8 @@ export default {
     fadeDelay: '变淡等待时间',
     dimOpacity: '变淡后不透明度',
     retention: '关闭后状态保留',
+    hiddenRetention: '隐藏后后台保留时间',
+    minutes: '分钟',
   },
   'zh-TW': {
     interface: '介面',
@@ -34,6 +36,8 @@ export default {
     fadeDelay: '淡化前等待時間',
     dimOpacity: '淡化後的不透明度',
     retention: '關閉後保留狀態',
+    hiddenRetention: '隱藏後背景保留時間',
+    minutes: '分鐘',
   },
   'en-US': {
     interface: 'Interface',
@@ -52,6 +56,8 @@ export default {
     fadeDelay: 'Delay before dimming',
     dimOpacity: 'Opacity when dimmed',
     retention: 'Keep state after closing',
+    hiddenRetention: 'Keep in background after hiding',
+    minutes: 'min',
   },
   'pt-BR': {
     interface: 'Interface',
@@ -70,6 +76,8 @@ export default {
     fadeDelay: 'Espera antes de esmaecer',
     dimOpacity: 'Opacidade esmaecida',
     retention: 'Manter estado após fechar',
+    hiddenRetention: 'Manter em segundo plano após ocultar',
+    minutes: 'min',
   },
   'vi-VN': {
     interface: 'Giao diện',
@@ -88,5 +96,7 @@ export default {
     fadeDelay: 'Thời gian chờ trước khi làm mờ',
     dimOpacity: 'Độ đục khi làm mờ',
     retention: 'Giữ trạng thái sau khi đóng',
+    hiddenRetention: 'Giữ trong nền sau khi ẩn',
+    minutes: 'phút',
   },
 }
