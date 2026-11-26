@@ -139,10 +139,7 @@ pub async fn close_for_boss_key<R: Runtime>(window: WebviewWindow<R>) -> Result<
     if window.label() != MAIN_WINDOW_LABEL {
         return Err("only the main window manages the boss key".into());
     }
-    let app = window.app_handle().clone();
-    let pet = hide_window(window).await;
-    let secondary = crate::hidden_panel::discard_for_boss_key(&app).await;
-    pet.and(secondary)
+    crate::hidden_panel::discard_for_boss_key(window.app_handle()).await
 }
 
 #[command]

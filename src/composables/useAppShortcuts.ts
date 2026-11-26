@@ -37,11 +37,7 @@ export function useAppShortcuts() {
       cat.window.visible = !cat.window.visible
     },
     visiblePreference: () => toggleAuxiliaryWindow(WINDOW_LABEL.PREFERENCE, () => hideWindow(WINDOW_LABEL.PREFERENCE)),
-    bossKey: () => {
-      const closing = closeForBossKey()
-      cat.window.visible = false
-      return closing
-    },
+    bossKey: closeForBossKey,
     penetrable: () => {
       cat.window.passThrough = !cat.window.passThrough
     },
