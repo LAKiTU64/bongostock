@@ -7,7 +7,7 @@ import { availableMonitors, cursorPosition, primaryMonitor } from '@tauri-apps/a
 import type { Point, Rect, SavedWindow, ScreenArea } from './windowGeometry'
 
 import { isMac } from './platform'
-import { contains, createSerialQueue, moveAndVerify, normalizeMonitor, selectScreen } from './windowGeometry'
+import { createSerialQueue, fitToDesktop, moveAndVerify, normalizeMonitor, selectScreen, visibleOnDesktop } from './windowGeometry'
 
 export const coordinateSpace = isMac ? 'macos-logical' : 'physical'
 export const windowPositionQueue = createSerialQueue()
@@ -23,25 +23,33 @@ export async function withPositioning<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
+function sameBounds(a: Rect, b: Rect) {
+  return Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1
+    && Math.abs(a.width - b.width) <= 1 && Math.abs(a.height - b.height) <= 1
+}
+
 export async function desktopGeometry() {
-  const [monitors, primary] = await Promise.all([availableMonitors(), primaryMonitor()])
-  const screens = monitors.map(monitor => normalizeMonitor(monitor, coordinateSpace))
-  if (isMac) {
-    // The pinned Tauri runtime omits macOS's vertical visibleFrame inset.
-    // Match native logical bounds rather than trusting monitor array order.
-    const native = await invoke<{ bounds: Rect, work: Rect }[]>('plugin:custom-window|display_work_areas')
-    for (const screen of screens) {
-      const match = native.find(({ bounds }) => Math.abs(bounds.x - screen.bounds.x) <= 1 && Math.abs(bounds.y - screen.bounds.y) <= 1
-        && Math.abs(bounds.width - screen.bounds.width) <= 1 && Math.abs(bounds.height - screen.bounds.height) <= 1)
-      if (!match) throw new Error('Display layout changed while reading work areas; retry recovery')
-      screen.work = match.work
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const [monitors, primary, native] = await Promise.all([
+      availableMonitors(),
+      primaryMonitor(),
+      isMac ? invoke<{ bounds: Rect, work: Rect }[]>('plugin:custom-window|display_work_areas') : undefined,
+    ])
+    const screens = monitors.map(monitor => normalizeMonitor(monitor, coordinateSpace))
+    const primaryId = primary ? normalizeMonitor(primary, coordinateSpace).id : undefined
+    if (!screens.length || (primaryId && !screens.some(screen => screen.id === primaryId))) continue
+    if (native) {
+      // Tauri omits the vertical visibleFrame inset. Screen changes can fall
+      // between the two APIs' snapshots; retry instead of applying mismatched areas.
+      const matches = screens.map(screen => native.find(area => sameBounds(area.bounds, screen.bounds)))
+      if (matches.some(match => !match) || native.some(area => !screens.some(screen => sameBounds(area.bounds, screen.bounds)))) continue
+      screens.forEach((screen, index) => {
+        screen.work = matches[index]!.work
+      })
     }
+    return { screens, primaryId, primaryScale: primary?.scaleFactor ?? 1 }
   }
-  return {
-    screens,
-    primaryId: primary ? normalizeMonitor(primary, coordinateSpace).id : undefined,
-    primaryScale: primary?.scaleFactor ?? 1,
-  }
+  throw new Error('Could not read a consistent display layout')
 }
 
 export async function readWindowRect(window: WebviewWindow): Promise<Rect> {
@@ -62,22 +70,21 @@ export async function moveWindow(window: WebviewWindow, point: Point) {
   await window.setPosition(isMac ? new LogicalPosition(point.x, point.y) : new PhysicalPosition(Math.round(point.x), Math.round(point.y)))
 }
 
-export async function placeWindow(window: WebviewWindow, target: Rect, area: Rect): Promise<Rect> {
+export async function placeWindow(window: WebviewWindow, target: Rect, area: Rect | ScreenArea[]): Promise<Rect> {
   return withPositioning(() => moveAndVerify(target, area, () => readWindowRect(window), point => moveWindow(window, point), () => new Promise(resolve => setTimeout(resolve, 80))))
 }
 
 export async function ensureWindowOnScreen(window: WebviewWindow): Promise<Rect> {
   const rect = await readWindowRect(window)
   const { screens, primaryId } = await desktopGeometry()
-  const screen = selectScreen(screens, primaryId, rect)
-  if (contains(screen.work, rect)) return rect
-  return placeWindow(window, rect, screen.work)
+  if (visibleOnDesktop(rect, screens)) return rect
+  return placeWindow(window, fitToDesktop(rect, screens, primaryId), screens)
 }
 
 export async function saveWindowRect(window: WebviewWindow): Promise<SavedWindow | undefined> {
   const rect = await readWindowRect(window)
   const { screens } = await desktopGeometry()
-  if (!screens.some(screen => contains(screen.work, rect))) return undefined
+  if (!visibleOnDesktop(rect, screens)) return undefined
   return { ...rect, version: 2, space: coordinateSpace, scale: await window.scaleFactor() }
 }
 

@@ -12,7 +12,7 @@
     "mac:build-debug": "tauri build --debug --bundles app && tsx scripts/signMacDebug.ts",
     "audit:release": "node scripts/auditReleaseAssets.mjs",
     "check:docs": "node scripts/checkDocs.mjs",
-    "test:windows": "tsx --test test/windowRecovery.test.ts",
+    "test:windows": "tsx --test test/windowRecovery.test.ts test/windowStateLifecycle.test.ts",
     "test:watchlist": "tsx --test test/watchlistDrag.test.ts test/watchlistSyncSession.test.ts",
     "test:video": "tsx --test test/videoHistory.test.ts test/audioSafety.test.ts test/biliHistory.test.ts test/biliHistorySession.test.ts test/biliFavorites.test.ts test/biliFavoritesSession.test.ts test/progressReporter.test.ts test/feedPresentation.test.ts test/feedPager.test.ts test/pageGesture.test.ts test/nativeScrollBridge.test.ts test/weeklyIssues.test.ts",
     "build:icon": "tsx scripts/buildIcon.ts",

@@ -4,6 +4,8 @@ use tauri::{
 };
 
 mod commands;
+#[cfg(target_os = "macos")]
+mod display_changes;
 mod hidden_panel;
 mod page_gesture;
 
@@ -29,6 +31,12 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             hidden_panel::hide_panel_for_hour,
         ])
         .on_event(|app, event| {
+            #[cfg(target_os = "macos")]
+            match event {
+                tauri::RunEvent::Ready => display_changes::observe(app),
+                tauri::RunEvent::Exit => display_changes::stop(),
+                _ => {}
+            }
             if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = event {
                 if label == commands::STOCK_PANEL_WINDOW_LABEL {
                     app.state::<hidden_panel::HiddenPanel>().did_destroy();

@@ -1,5 +1,5 @@
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use tauri::{
@@ -12,12 +12,29 @@ pub const PREFERENCE_WINDOW_LABEL: &str = "preference";
 pub const STOCK_PANEL_WINDOW_LABEL: &str = "stock-panel";
 pub const SHOW_WINDOW_EVENT: &str = "show-window";
 const RECOVER_WINDOWS_EVENT: &str = "recover-desktop-windows";
-static RECOVERY_PENDING: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MainWindowRequest {
+    Reopen,
+    Recover,
+}
+
+static PENDING_REQUEST: Mutex<Option<MainWindowRequest>> = Mutex::new(None);
 
 /// Keep the request until the main webview has restored stores and final size.
 /// Emitting alone loses Reopen/single-instance requests during Vue startup.
-pub fn request_main_recovery<R: Runtime>(app_handle: &AppHandle<R>) -> Result<(), String> {
-    RECOVERY_PENDING.store(true, Ordering::SeqCst);
+pub fn request_main_window<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    request: MainWindowRequest,
+) -> Result<(), String> {
+    {
+        let mut pending = PENDING_REQUEST.lock().map_err(|error| error.to_string())?;
+        // A queued explicit menu action also reveals the pet and takes priority.
+        if !matches!(*pending, Some(MainWindowRequest::Recover)) {
+            *pending = Some(request);
+        }
+    }
     app_handle
         .emit_to(
             EventTarget::labeled(MAIN_WINDOW_LABEL),
@@ -29,15 +46,20 @@ pub fn request_main_recovery<R: Runtime>(app_handle: &AppHandle<R>) -> Result<()
 
 #[command]
 pub fn request_window_recovery<R: Runtime>(app_handle: AppHandle<R>) -> Result<(), String> {
-    request_main_recovery(&app_handle)
+    request_main_window(&app_handle, MainWindowRequest::Recover)
 }
 
 #[command]
-pub fn take_window_recovery_request<R: Runtime>(window: WebviewWindow<R>) -> Result<bool, String> {
+pub fn take_window_recovery_request<R: Runtime>(
+    window: WebviewWindow<R>,
+) -> Result<Option<MainWindowRequest>, String> {
     if window.label() != MAIN_WINDOW_LABEL {
         return Err("only the main window can handle recovery".into());
     }
-    Ok(RECOVERY_PENDING.swap(false, Ordering::SeqCst))
+    Ok(PENDING_REQUEST
+        .lock()
+        .map_err(|error| error.to_string())?
+        .take())
 }
 
 #[command]

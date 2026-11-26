@@ -16,6 +16,7 @@ import { installWindowRecovery, recoveringWindows, reportWindowRecoveryError } f
 import { useCatStore } from '@/stores/cat'
 import { useGeneralStore } from '@/stores/general.ts'
 import { useSkinStore } from '@/stores/skin'
+import { compactPetLayout } from '@/utils/petLayout'
 import { isMac, isWindows } from '@/utils/platform'
 import { ensureWindowOnScreen, windowPositionQueue } from '@/utils/windowPlacement'
 
@@ -28,29 +29,19 @@ const generalStore = useGeneralStore()
 const skinStore = useSkinStore()
 const leftPulse = ref(false)
 const rightPulse = ref(false)
-const COMPACT_CONTENT_WIDTH = 150
-const BUILTIN_CONTENT_WIDTH = 180
-const COMPACT_LEFT_GUTTER = 6
-const COMPACT_VISIBLE_HEIGHT = 106
-const BUILTIN_VISIBLE_HEIGHT = 137
 const displayScaleFactor = ref(globalThis.devicePixelRatio)
-const compactScale = computed(() => catStore.window.scale / 100)
-// macOS LogicalSize and CSS pixels already account for the target display DPI.
-// Keep the existing physical-pixel sizing behavior on Windows and Linux.
-const compactLayoutScaleFactor = computed(() => isMac ? 1 : displayScaleFactor.value)
 const selectedSkin = computed(() => skinStore.resolveId(catStore.skin))
 const importedSkin = computed(() => skinStore.find(selectedSkin.value))
 const builtinSkin = computed(() => skinStore.findBuiltin(selectedSkin.value))
-const compactContentWidth = computed(() => builtinSkin.value ? BUILTIN_CONTENT_WIDTH : COMPACT_CONTENT_WIDTH)
-const compactContentHeight = computed(() => builtinSkin.value ? BUILTIN_VISIBLE_HEIGHT : COMPACT_VISIBLE_HEIGHT)
+const layout = computed(() => compactPetLayout(Boolean(builtinSkin.value), catStore.window.scale, isMac ? 1 : displayScaleFactor.value))
 const compactPetStyle = computed(() => ({
-  '--pet-scale': compactScale.value,
+  '--pet-scale': layout.value.scale,
   '--pet-radius': `${catStore.window.radius}%`,
-  '--counter-font-size': `${(isMac ? 13 : 11) * compactScale.value}px`,
-  'left': `${COMPACT_LEFT_GUTTER * compactScale.value / compactLayoutScaleFactor.value}px`,
+  '--counter-font-size': `${(isMac ? 13 : 11) * layout.value.scale}px`,
+  'left': `${layout.value.left}px`,
   'top': '0px',
-  'width': `${compactContentWidth.value * compactScale.value / compactLayoutScaleFactor.value}px`,
-  'height': `${compactContentHeight.value * compactScale.value / compactLayoutScaleFactor.value}px`,
+  'width': `${layout.value.width}px`,
+  'height': `${layout.value.height}px`,
 }))
 let leftPulseTimer: ReturnType<typeof setTimeout> | undefined
 let rightPulseTimer: ReturnType<typeof setTimeout> | undefined
@@ -59,9 +50,13 @@ let isDragging = false
 let dragResetTimer: ReturnType<typeof setTimeout> | undefined
 let contextMenuOpen = false
 let panelFocusTimer: ReturnType<typeof setTimeout> | undefined
-let unlistenMainFocus: (() => void) | undefined
-let unlistenRecovery: (() => void) | undefined
-let initialSizeApplied = false
+let disposed = false
+const listeners: (() => void)[] = []
+function keepListener(unlisten: () => void) {
+  if (disposed) unlisten()
+  else listeners.push(unlisten)
+  return !disposed
+}
 const panelPinned = ref(false)
 
 const DRAG_THRESHOLD = 5
@@ -69,27 +64,26 @@ const DRAG_THRESHOLD = 5
 onMounted(startListening)
 
 onUnmounted(() => {
+  disposed = true
   clearTimeout(leftPulseTimer)
   clearTimeout(rightPulseTimer)
   clearTimeout(panelFocusTimer)
   clearTimeout(dragResetTimer)
-  unlistenMainFocus?.()
-  unlistenRecovery?.()
+  listeners.forEach(unlisten => unlisten())
 })
 
 onMounted(async () => {
-  await setCompactWindowSize()
-  unlistenRecovery = await installWindowRecovery()
-  await appWindow.onScaleChanged(async ({ payload }) => {
+  if (!keepListener(await installWindowRecovery())) return
+  const unlistenScale = await appWindow.onScaleChanged(async ({ payload }) => {
+    if (disposed) return
     displayScaleFactor.value = isMac ? payload.scaleFactor : globalThis.devicePixelRatio
     await setCompactWindowSize()
   })
+  if (!keepListener(unlistenScale)) return
 
-  unlistenMainFocus = await appWindow.onFocusChanged(({ payload: focused }) => {
-    if (focused || contextMenuOpen) return
-
-    scheduleCloseStockPanelIfUnfocused()
-  })
+  keepListener(await appWindow.onFocusChanged(({ payload: focused }) => {
+    if (!disposed && !focused && !contextMenuOpen) scheduleCloseStockPanelIfUnfocused()
+  }))
 })
 
 watch([() => catStore.window.scale, () => catStore.skin], setCompactWindowSize)
@@ -173,15 +167,14 @@ function handlePetClick() {
 async function setCompactWindowSize() {
   const forceSafePosition = recoveringWindows.value
   await windowPositionQueue(async () => {
+    if (disposed) return
     if (!isMac) displayScaleFactor.value = globalThis.devicePixelRatio
 
     await appWindow.setSize(new LogicalSize({
-      width: (compactContentWidth.value + COMPACT_LEFT_GUTTER) * compactScale.value / compactLayoutScaleFactor.value,
-      height: (compactContentHeight.value + 1) * compactScale.value / compactLayoutScaleFactor.value,
+      width: layout.value.windowWidth,
+      height: layout.value.windowHeight,
     }))
-    // Run after final skin/scale sizing too, not just App.vue's initial restore.
-    if (!initialSizeApplied || forceSafePosition || catStore.window.keepInScreen) await ensureWindowOnScreen(appWindow)
-    initialSizeApplied = true
+    if (!disposed && (forceSafePosition || catStore.window.keepInScreen)) await ensureWindowOnScreen(appWindow)
   }).catch(reportWindowRecoveryError)
 }
 

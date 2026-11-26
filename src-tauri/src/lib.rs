@@ -8,7 +8,7 @@ use core::{
 };
 use tauri::{Manager, WindowEvent, generate_handler};
 use tauri_plugin_autostart::MacosLauncher;
-use tauri_plugin_custom_window::{MAIN_WINDOW_LABEL, request_main_recovery};
+use tauri_plugin_custom_window::{MAIN_WINDOW_LABEL, MainWindowRequest, request_main_window};
 use utils::audio_output::{get_audio_output_state, init_audio_output, shutdown_audio_output};
 use utils::fs_extra::copy_dir;
 use utils::market::market_request;
@@ -67,7 +67,7 @@ pub fn run() {
         .plugin(prevent_default::init())
         .plugin(tauri_plugin_single_instance::init(
             |app_handle, _argv, _cwd| {
-                if let Err(error) = request_main_recovery(app_handle) {
+                if let Err(error) = request_main_window(app_handle, MainWindowRequest::Reopen) {
                     tauri_plugin_log::log::error!("window recovery request failed: {error}");
                 }
             },
@@ -103,7 +103,7 @@ pub fn run() {
         tauri::RunEvent::Exit => shutdown_audio_output(),
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => {
-            if let Err(error) = request_main_recovery(app_handle) {
+            if let Err(error) = request_main_window(app_handle, MainWindowRequest::Reopen) {
                 tauri_plugin_log::log::error!("window recovery request failed: {error}");
             }
         }

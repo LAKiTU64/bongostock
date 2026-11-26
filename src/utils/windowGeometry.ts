@@ -48,6 +48,34 @@ function overlap(a: Rect, b: Rect): number {
     * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y))
 }
 
+/** Test the union of work areas, including holes between staggered displays. */
+export function visibleOnDesktop(rect: Rect, screens: ScreenArea[]): boolean {
+  if (!validPoint(rect) || !validSize(rect)) return false
+  if (screens.some(screen => contains(screen.work, rect))) return true
+  const areas = screens.map(screen => screen.work).filter(area => overlap(area, rect) > 0).sort((a, b) => a.y - b.y)
+  if (!areas.length) return false
+  // Between consecutive vertical edges, the set of covering displays is constant.
+  const right = rect.x + rect.width
+  const bottom = rect.y + rect.height
+  const cuts = new Set([rect.x, right])
+  for (const area of areas) {
+    cuts.add(Math.max(rect.x, area.x))
+    cuts.add(Math.min(right, area.x + area.width))
+  }
+  const edges = [...cuts].sort((a, b) => a - b)
+  for (let i = 1; i < edges.length; i++) {
+    let coveredTo = rect.y
+    for (const area of areas) {
+      if (area.x > edges[i - 1]! || area.x + area.width < edges[i]!) continue
+      if (area.y > coveredTo) break
+      coveredTo = Math.max(coveredTo, area.y + area.height)
+      if (coveredTo >= bottom) break
+    }
+    if (coveredTo < bottom) return false
+  }
+  return true
+}
+
 export function selectScreen(screens: ScreenArea[], primaryId?: string, rect?: Rect, point?: Point): ScreenArea {
   if (!screens.length) throw new Error('No available display work area')
   const underPointer = point && screens.find(({ bounds }) => point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height)
@@ -69,6 +97,41 @@ export function clampRect(rect: Rect, area: Rect): Rect {
     x: Math.max(area.x, Math.min(validNumber(rect.x) ? rect.x : area.x, area.x + Math.max(0, area.width - rect.width))),
     y: Math.max(area.y, Math.min(validNumber(rect.y) ? rect.y : area.y, area.y + Math.max(0, area.height - rect.height))),
   }
+}
+
+/** Keep a valid position; otherwise move only as far as the usable desktop requires. */
+export function fitToDesktop(rect: Rect, screens: ScreenArea[], primaryId?: string): Rect {
+  if (visibleOnDesktop(rect, screens)) return rect
+  const screen = selectScreen(screens, primaryId, rect)
+  let best = clampRect(rect, screen.work)
+  if (screens.length === 1 || !validPoint(rect)) return best
+  let distance = visibleOnDesktop(best, screens) ? Math.hypot(best.x - rect.x, best.y - rect.y) : Infinity
+  // A closest valid rectangle keeps each axis or touches a work-area edge.
+  // Include both sides of every edge to handle L-shaped and staggered layouts.
+  const xs = new Set([rect.x])
+  const ys = new Set([rect.y])
+  for (const { work } of screens) {
+    for (const edge of [work.x, work.x + work.width]) {
+      xs.add(edge)
+      xs.add(edge - rect.width)
+    }
+    for (const edge of [work.y, work.y + work.height]) {
+      ys.add(edge)
+      ys.add(edge - rect.height)
+    }
+  }
+  for (const x of xs) {
+    for (const y of ys) {
+      const d = Math.hypot(x - rect.x, y - rect.y)
+      if (d >= distance) continue
+      const candidate = { ...rect, x, y }
+      if (visibleOnDesktop(candidate, screens)) {
+        best = candidate
+        distance = d
+      }
+    }
+  }
+  return best
 }
 
 export function placePanel(pet: Rect, size: Size, area: Rect, gap = 12): Rect {
@@ -96,15 +159,24 @@ export function placePair(petSize: Size, panelSize: Size, area: Rect, gap = 12):
 }
 
 export function restorePosition(saved: SavedWindow | undefined, space: CoordinateSpace, size: Size, screens: ScreenArea[], primaryId?: string): Rect {
-  // Legacy macOS records have no source display scale. Guessing using the
-  // current window's scale compounds the error at every launch. Reset once.
-  const usable = saved && validPoint(saved) && (
-    (saved.version === 2 && saved.space === space)
-    || (saved.version === undefined && space === 'physical')
-  )
-  const rect = usable ? { ...size, x: saved.x!, y: saved.y! } : undefined
-  const screen = selectScreen(screens, primaryId, rect)
-  return clampRect(rect ?? {
+  if (saved && validPoint(saved)) {
+    if ((saved.version === 2 && saved.space === space) || (saved.version === undefined && space === 'physical')) {
+      return fitToDesktop({ ...size, x: saved.x, y: saved.y }, screens, primaryId)
+    }
+    // Legacy macOS move/resize events recorded physical pixels separately.
+    // Both dimensions and the candidate display must agree on the old scale.
+    if (saved.version === undefined && space === 'macos-logical' && validSize(saved)) {
+      const candidates = []
+      for (const scale of new Set(screens.map(screen => screen.scale))) {
+        if (Math.abs(saved.width - size.width * scale) > 1 || Math.abs(saved.height - size.height * scale) > 1) continue
+        const rect = { ...size, x: saved.x / scale, y: saved.y / scale }
+        if (visibleOnDesktop(rect, screens) && screens.some(screen => screen.scale === scale && overlap(screen.bounds, rect) > 0)) candidates.push(rect)
+      }
+      if (candidates.length === 1) return candidates[0]!
+    }
+  }
+  const screen = selectScreen(screens, primaryId)
+  return clampRect({
     ...size,
     x: screen.work.x + (screen.work.width - size.width) / 2,
     y: screen.work.y + (screen.work.height - size.height) / 2,
@@ -123,19 +195,21 @@ export function createSerialQueue() {
 
 export async function moveAndVerify(
   target: Rect,
-  area: Rect,
+  area: Rect | ScreenArea[],
   read: () => Promise<Rect>,
   move: (point: Point) => Promise<void>,
   settle: () => Promise<void>,
 ): Promise<Rect> {
-  let desired = clampRect(target, area)
+  const fit = (rect: Rect) => Array.isArray(area) ? fitToDesktop(rect, area) : clampRect(rect, area)
+  let desired = fit(target)
   for (let attempt = 0; attempt < 3; attempt++) {
     await move(desired)
     await settle()
     const actual = await read()
-    if (contains(area, actual) && Math.abs(actual.x - desired.x) <= 1 && Math.abs(actual.y - desired.y) <= 1) return actual
+    const visible = Array.isArray(area) ? visibleOnDesktop(actual, area) : contains(area, actual)
+    if (visible && Math.abs(actual.x - desired.x) <= 1 && Math.abs(actual.y - desired.y) <= 1) return actual
     // DPI/skin sizing may finish after the move; use the actual final size.
-    desired = clampRect({ ...actual, x: target.x, y: target.y }, area)
+    desired = fit({ ...actual, x: target.x, y: target.y })
   }
   throw new Error('Window position could not be verified inside the display work area')
 }

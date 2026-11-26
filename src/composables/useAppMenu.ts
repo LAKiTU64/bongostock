@@ -3,9 +3,10 @@ import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { range } from 'es-toolkit'
 import { useI18n } from 'vue-i18n'
 
+import { flushWindowStateBeforeExit } from '@/composables/useWindowState'
 import { WINDOW_LABEL } from '@/constants'
 import { showWindow } from '@/plugins/window'
-import { requestWindowRecovery } from '@/plugins/windowRecovery'
+import { reportWindowRecoveryError, requestWindowRecovery } from '@/plugins/windowRecovery'
 import { useCatStore } from '@/stores/cat'
 import { isMac } from '@/utils/platform'
 
@@ -73,12 +74,18 @@ export function useAppMenu() {
     return await Promise.all([
       MenuItem.new({
         text: t('composables.useAppMenu.labels.restartApp'),
-        action: relaunch,
+        action: async () => {
+          await flushWindowStateBeforeExit().catch(reportWindowRecoveryError)
+          await relaunch()
+        },
       }),
       MenuItem.new({
         text: t('composables.useAppMenu.labels.quitApp'),
         accelerator: isMac ? 'Cmd+Q' : '',
-        action: () => exit(0),
+        action: async () => {
+          await flushWindowStateBeforeExit().catch(reportWindowRecoveryError)
+          await exit(0)
+        },
       }),
     ])
   }

@@ -11,8 +11,9 @@ import { WINDOW_LABEL } from '@/constants'
 import { i18n } from '@/locales/i18n'
 import { useAppStore } from '@/stores/app'
 import { useCatStore } from '@/stores/cat'
+import { isMac } from '@/utils/platform'
 import { placePair } from '@/utils/windowGeometry'
-import { coordinateSpace, ensureWindowOnScreen, placeWindow, readWindowRect, recoveryScreen, saveWindowRect, windowPositionQueue } from '@/utils/windowPlacement'
+import { coordinateSpace, desktopGeometry, ensureWindowOnScreen, placeWindow, readWindowRect, recoveryScreen, saveWindowRect, windowPositionQueue } from '@/utils/windowPlacement'
 import { recoverWindowPlacement } from '@/utils/windowRecoveryFlow'
 
 import { showWindow } from './window'
@@ -140,18 +141,41 @@ export async function installPanelRecovery() {
 
 async function persistWindow(window: WebviewWindow) {
   const state = await saveWindowRect(window)
-  if (state) useAppStore().windowState[window.label] = state
+  if (state) await useAppStore().saveWindowState(window.label, state)
+}
+
+async function revealPet(pet: WebviewWindow) {
+  // Clear transient hover hiding only; preserve all appearance settings.
+  document.body.style.setProperty('opacity', 'unset')
+  await pet.setIgnoreCursorEvents(useCatStore().window.passThrough)
+  await invoke(`${COMMAND}reveal_recovered_main`)
+  useCatStore().window.visible = true
+}
+
+async function verifyPet(pet: WebviewWindow) {
+  await ensureWindowOnScreen(pet)
+  if (!await pet.isVisible()) throw new Error('Pet window could not be shown')
+}
+
+async function reopenPet() {
+  const pet = WebviewWindow.getCurrent()
+  await windowPositionQueue(async () => {
+    if (await pet.isMinimized()) await pet.unminimize()
+    await ensureWindowOnScreen(pet)
+    await revealPet(pet)
+    await verifyPet(pet)
+    await persistWindow(pet)
+  })
 }
 
 async function recoverDesktopWindows() {
   const pet = WebviewWindow.getCurrent()
   const panel = await WebviewWindow.getByLabel(WINDOW_LABEL.STOCK_PANEL)
-  recoveringWindows.value = true
   let panelPrepared = false
   let panelFailure: unknown
   try {
     // Serialize against the panel's pending show/resize before touching either
-    // window. Its 30-second state retention never restores a stale position.
+    // window, including a hidden panel retaining its page and player.
     let panelState: PanelReply | undefined
     if (panel) {
       panelPrepared = true
@@ -175,17 +199,8 @@ async function recoverDesktopWindows() {
       }, screen.work)
       await recoverWindowPlacement({
         place: (target, area) => placeWindow(pet, target, area),
-        show: async () => {
-          // Clear transient hover hiding only; preserve all appearance settings.
-          document.body.style.setProperty('opacity', 'unset')
-          await pet.setIgnoreCursorEvents(useCatStore().window.passThrough)
-          await invoke(`${COMMAND}reveal_recovered_main`)
-          useCatStore().window.visible = true
-        },
-        verify: async () => {
-          await ensureWindowOnScreen(pet)
-          if (!await pet.isVisible()) throw new Error('Pet window could not be shown')
-        },
+        show: () => revealPet(pet),
+        verify: () => verifyPet(pet),
         persist: () => persistWindow(pet),
       }, pair.pet, screen.work, true)
       if (panelState) {
@@ -195,16 +210,12 @@ async function recoverDesktopWindows() {
     })
     if (panelFailure) throw panelFailure
   } finally {
-    try {
-      if (panelPrepared) await callPanel('cancel')
-    } finally {
-      recoveringWindows.value = false
-    }
+    if (panelPrepared) await callPanel('cancel')
   }
 }
 
 /**
- * Listener first, then consume the native pending bit: Reopen cannot get lost
+ * Listen before draining pending native requests so Reopen cannot get lost
  * while Vue/stores/skin sizing are still starting. Only the main page calls it.
  */
 export async function installWindowRecovery() {
@@ -217,11 +228,17 @@ export async function installWindowRecovery() {
     try {
       do {
         requested = false
-        while (await invoke<boolean>(`${COMMAND}take_window_recovery_request`)) {
+        for (;;) {
+          const request = await invoke<'reopen' | 'recover' | null>(`${COMMAND}take_window_recovery_request`)
+          if (!request) break
+          recoveringWindows.value = true
           try {
-            await recoverDesktopWindows()
+            if (request === 'recover') await recoverDesktopWindows()
+            else await reopenPet()
           } catch (error) {
             await reportWindowRecoveryError(error)
+          } finally {
+            recoveringWindows.value = false
           }
         }
       } while (requested)
@@ -232,6 +249,59 @@ export async function installWindowRecovery() {
     }
   }
   const unlisten = await listen(RECOVER_EVENT, () => void drain())
+  const stopDisplayChecks = isMac
+    ? await listenForDisplayChanges().catch(async (error) => {
+        await logError(`[display layout] ${String(error)}`)
+        return undefined
+      })
+    : undefined
   await drain()
-  return unlisten
+  return () => {
+    stopDisplayChecks?.()
+    unlisten()
+  }
+}
+
+async function listenForDisplayChanges() {
+  const pet = WebviewWindow.getCurrent()
+  let timer: ReturnType<typeof setTimeout>
+  let generation = 0
+  const layoutKey = async () => {
+    const { primaryId, screens } = await desktopGeometry()
+    // AppKit also notifies for display parameters which do not affect placement.
+    // Monitor enumeration order is not part of the layout.
+    return JSON.stringify([primaryId, ...screens.map(s => JSON.stringify([s.bounds, s.work, s.scale])).sort()])
+  }
+  let previous = await layoutKey().catch(() => undefined)
+  const schedule = (revision: number, attempt = 0) => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      void windowPositionQueue(async () => {
+        if (revision !== generation) return
+        const layout = await layoutKey()
+        if (revision !== generation || layout === previous) return
+        const minimized = await pet.isMinimized()
+        if (revision !== generation) return
+        if (!minimized) {
+          await ensureWindowOnScreen(pet)
+          if (revision === generation) await persistWindow(pet)
+        }
+        if (revision === generation) previous = layout
+      }).catch((error) => {
+        if (revision !== generation) return
+        // Hot-plug and wake can briefly expose no screens or mixed snapshots.
+        if (attempt < 2) schedule(revision, attempt + 1)
+        else void logError(`[display layout] ${String(error)}`)
+      })
+    }, attempt === 0 ? 350 : 700)
+  }
+  const unlisten = await pet.listen('desktop-displays-changed', () => schedule(++generation))
+  // Catch a change between the initial snapshot and subscription. If startup
+  // could not read any layout, wait for an actual AppKit notification.
+  if (previous !== undefined) schedule(++generation)
+  return () => {
+    generation++
+    clearTimeout(timer)
+    unlisten()
+  }
 }
