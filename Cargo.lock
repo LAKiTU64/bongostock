@@ -5345,6 +5345,7 @@ dependencies = [
 name = "tauri-plugin-custom-window"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "serde",
  "tauri",
  "tauri-nspanel",

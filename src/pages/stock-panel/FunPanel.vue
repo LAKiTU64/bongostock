@@ -9,6 +9,7 @@ import type { PageDirection, VideoSource } from '@/market/feedPager'
 import type { FeedItem } from '@/market/feedService'
 import type { ProgressReporter } from '@/market/progressReporter'
 
+import { useNativePageScroll } from '@/composables/useNativePageScroll'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { createBiliFavoritesSession } from '@/market/biliFavoritesSession'
@@ -171,8 +172,25 @@ function turnPage(direction: PageDirection) {
   else void pager.move(direction, true)
 }
 
+const pageViewport = ref<HTMLElement>()
+const nativeScroll = useNativePageScroll({
+  viewport: pageViewport,
+  enabled: () => !playing.value && Boolean(displayItems.value.length) && !accountState.value.checking,
+  // No page number or pagerVersion here: one long gesture may cross many pages.
+  context: () => JSON.stringify([
+    cacheKey.value,
+    accountState.value.context?.scope,
+    accountState.value.context?.identity?.revision,
+    marketStore.external.baseUrl,
+    marketStore.bearerToken,
+    Boolean(playing.value),
+  ]),
+  activate: gesture.activate,
+  wheel: gesture.nativeWheel,
+})
+
 function onWheel(event: WheelEvent) {
-  if (!displayItems.value.length) return
+  if (!displayItems.value.length || !nativeScroll.acceptsDomWheel()) return
   const delta = wheelDirection(event)
   if (!delta) return
   if (pageState.value.pendingNext) {
@@ -389,6 +407,7 @@ defineExpose({ refresh, pause: stop })
     <template v-else>
       <div class="list">
         <div
+          ref="pageViewport"
           class="page-viewport"
           @wheel="onWheel"
         >
@@ -496,19 +515,23 @@ defineExpose({ refresh, pause: stop })
             <FeedContextPicker
               v-if="source === 'favorites' && favoritesState.folders.length"
               :key="`${accountState.context?.scope}:${accountState.context?.identity?.revision}`"
+              :before-open="nativeScroll.suspend"
               :disabled="accountState.checking"
               :folders="favoritesState.folders"
               :selected-id="favoritesState.selectedId"
+              @close="nativeScroll.resume"
               @select="selectFolder"
             />
             <FeedContextPicker
               v-else-if="source === 'weekly' && weeklyState.issues.length"
               :key="`weekly:${accountState.context?.scope}:${accountState.context?.identity?.revision}`"
+              :before-open="nativeScroll.suspend"
               :disabled="accountState.checking"
               :folders="weeklyOptions"
               label="每周必看期数"
               :selected-id="String(weeklyState.selectedNumber)"
               :trigger-title="`第 ${weeklyState.selectedNumber} 期`"
+              @close="nativeScroll.resume"
               @select="selectIssue"
             />
             <span

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-page-gesture"
+description = "Enables the set_page_gesture command without any pre-configured scope."
+commands.allow = ["set_page_gesture"]
+
+[[permission]]
+identifier = "deny-set-page-gesture"
+description = "Denies the set_page_gesture command without any pre-configured scope."
+commands.deny = ["set_page_gesture"]

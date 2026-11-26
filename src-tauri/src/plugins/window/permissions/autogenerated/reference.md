@@ -13,6 +13,7 @@ Default permissions for the plugin
 - `allow-take-window-recovery-request`
 - `allow-reveal-recovered-main`
 - `allow-display-work-areas`
+- `allow-set-page-gesture`
 
 ## Permission Table
 
@@ -149,6 +150,32 @@ Enables the set_always_on_top command without any pre-configured scope.
 <td>
 
 Denies the set_always_on_top command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:allow-set-page-gesture`
+
+</td>
+<td>
+
+Enables the set_page_gesture command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-set-page-gesture`
+
+</td>
+<td>
+
+Denies the set_page_gesture command without any pre-configured scope.
 
 </td>
 </tr>

@@ -13,6 +13,8 @@ import { fetchNews } from '@/news/newsService'
 import { useNewsStore } from '@/stores/news'
 import { useWatchlistStore } from '@/stores/watchlist'
 
+import NewsFilterSelect from './NewsFilterSelect.vue'
+
 const props = defineProps<{
   activeGroupId: string
   quotes: StockQuote[]
@@ -25,6 +27,8 @@ const emit = defineEmits<{
   loading: [value: boolean]
 }>()
 
+const timeRangeOptions = [['1d', '1天'], ['3d', '3天'], ['7d', '7天'], ['all', '不限']] as const
+const depthOptions = [['standard', '10条'], ['extended', '20条']] as const
 const newsStore = useNewsStore()
 const watchlistStore = useWatchlistStore()
 const loading = ref(false)
@@ -40,7 +44,7 @@ const dirty = ref(true)
 let requestId = 0
 let listDrag: { pointerId: number, startY: number, scrollTop: number, moved: boolean } | undefined
 
-const presetOptions = computed(() => {
+const presetOptions = computed<readonly (readonly [string, string])[]>(() => {
   if (newsStore.scope === 'briefing') {
     return [
       ['auto', '自动'],
@@ -296,51 +300,26 @@ function handleListPointerEnd(event: PointerEvent) {
             {{ item[1] }}
           </button>
         </nav>
-        <select
+        <NewsFilterSelect
           v-model="activePreset"
           class="preset-select"
-          title="检索主题"
-          @click.stop
-        >
-          <option
-            v-for="item in presetOptions"
-            :key="item[0]"
-            :value="item[0]"
-          >
-            {{ item[1] }}
-          </option>
-        </select>
-        <select
+          label="检索主题"
+          :options="presetOptions"
+        />
+        <NewsFilterSelect
           v-model="newsStore.timeRange"
+          align-end
           class="time-range-select"
-          title="时间范围"
-          @click.stop
-        >
-          <option value="1d">
-            1天
-          </option>
-          <option value="3d">
-            3天
-          </option>
-          <option value="7d">
-            7天
-          </option>
-          <option value="all">
-            不限
-          </option>
-        </select>
-        <select
+          label="时间范围"
+          :options="timeRangeOptions"
+        />
+        <NewsFilterSelect
           v-model="newsStore.depth"
+          align-end
           class="depth-select"
-          title="召回深度"
-          @click.stop
-        >
-          <option value="standard">
-            10条
-          </option><option value="extended">
-            20条
-          </option>
-        </select>
+          label="召回深度"
+          :options="depthOptions"
+        />
         <button
           :aria-label="loading ? '正在搜索' : '搜索'"
           class="search-button"
@@ -525,6 +504,11 @@ function handleListPointerEnd(event: PointerEvent) {
   gap: var(--tab-gap);
   border-bottom: 1px solid rgb(68 61 62 / 9%);
 }
+.filter-row:not(.detail-toolbar) {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) 40px 44px 24px;
+  padding-right: 2px;
+}
 .scope-tabs {
   display: flex;
   flex: none;
@@ -583,7 +567,6 @@ function handleListPointerEnd(event: PointerEvent) {
   font-weight: 650;
   line-height: 1.1;
 }
-.filter-row select,
 .security-context select {
   box-sizing: border-box;
   min-width: 0;
@@ -596,19 +579,6 @@ function handleListPointerEnd(event: PointerEvent) {
   color: #655b5c;
   font: inherit;
   font-size: 8.5px;
-}
-.filter-row .preset-select {
-  width: 0;
-  min-width: 44px;
-  flex: 1;
-}
-.filter-row .time-range-select {
-  width: 44px;
-  flex: none;
-}
-.filter-row .depth-select {
-  width: 48px;
-  flex: none;
 }
 .security-context select {
   padding: 0 2px;

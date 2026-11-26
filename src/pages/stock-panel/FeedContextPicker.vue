@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useEventListener } from '@vueuse/core'
-import { computed, nextTick, ref, useId, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, useId, watch } from 'vue'
 
 const props = defineProps<{
   folders: readonly { id: string, title: string }[]
@@ -8,19 +8,26 @@ const props = defineProps<{
   disabled?: boolean
   label?: string
   triggerTitle?: string
+  beforeOpen?: () => Promise<boolean>
 }>()
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{ select: [id: string], close: [] }>()
 const menuId = useId()
 const root = ref<HTMLElement>()
 const trigger = ref<HTMLButtonElement>()
 const menu = ref<HTMLElement>()
 const open = ref(false)
+const opening = ref(false)
+let openRequest = 0
 const activeIndex = ref(0)
 const pickerLabel = computed(() => props.label || '收藏夹')
 const selectedTitle = computed(() => props.triggerTitle || props.folders.find(folder => folder.id === props.selectedId)?.title || pickerLabel.value)
 
 function close(restoreFocus = false) {
+  const active = open.value || opening.value
+  openRequest += 1
   open.value = false
+  opening.value = false
+  if (active) emit('close')
   if (restoreFocus) trigger.value?.focus({ preventScroll: true })
 }
 
@@ -33,11 +40,24 @@ async function focusOption(index: number) {
   option?.scrollIntoView({ block: 'nearest' })
 }
 
-function show(edge?: 'first' | 'last') {
-  if (props.disabled || !props.folders.length) return
-  open.value = true
-  const selected = props.folders.findIndex(folder => folder.id === props.selectedId)
-  void focusOption(edge === 'first' ? 0 : edge === 'last' ? props.folders.length - 1 : Math.max(0, selected))
+async function show(edge?: 'first' | 'last') {
+  if (props.disabled || !props.folders.length || opening.value || open.value) return
+  const request = ++openRequest
+  opening.value = true
+  try {
+    const ready = props.beforeOpen ? await props.beforeOpen() : true
+    if (request !== openRequest) return
+    if (!ready || props.disabled || !props.folders.length) {
+      close()
+      return
+    }
+    opening.value = false
+    open.value = true
+    const selected = props.folders.findIndex(folder => folder.id === props.selectedId)
+    void focusOption(edge === 'first' ? 0 : edge === 'last' ? props.folders.length - 1 : Math.max(0, selected))
+  } catch {
+    if (request === openRequest) close()
+  }
 }
 
 function choose(id: string) {
@@ -46,14 +66,14 @@ function choose(id: string) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && open.value) {
+  if (event.key === 'Escape' && (open.value || opening.value)) {
     event.preventDefault()
     // The window also handles Escape; dismiss only this menu on the first press.
     event.stopPropagation()
     close(true)
     return
   }
-  if (event.key === 'Tab' && open.value) {
+  if (event.key === 'Tab' && (open.value || opening.value)) {
     // Resume normal tab order from the trigger, not from an about-to-be-removed item.
     close(true)
     return
@@ -89,8 +109,9 @@ watch(() => props.disabled, (disabled) => {
   if (disabled) close()
 })
 watch(() => props.folders, () => {
-  if (open.value) close(true)
+  if (open.value || opening.value) close(true)
 })
+onUnmounted(() => close())
 </script>
 
 <template>
@@ -110,7 +131,7 @@ watch(() => props.folders, () => {
       class="folder-trigger"
       :disabled="disabled"
       type="button"
-      @click="open ? close() : show()"
+      @click="open || opening ? close() : show()"
     >
       <span class="folder-name">{{ selectedTitle }}</span>
       <svg
