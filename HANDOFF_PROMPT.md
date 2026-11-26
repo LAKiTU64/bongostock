@@ -21,7 +21,7 @@ pnpm install --frozen-lockfile
 仓库：https://github.com/LAKiTU64/bongostock
 默认分支：main
 版本：1.2.0
-当前阶段：`1.1.0` 已发布（自选云端双向同步 v2 + 分组重排，Windows x64 安装包与 macOS Apple Silicon DMG 已通过 GitHub Release 发布），工作区版本为 1.2.0。资讯中心 Phase 0～6 已实现。
+当前阶段：`1.2.0` 已发布（新版客户端设置、视频收藏与云端历史、隐藏浮窗与老板键，Windows x64 安装包与 macOS Apple Silicon DMG 已通过 GitHub Release 发布）。资讯中心 Phase 0～6 已实现。
 
 请先完整阅读：
 1. README.md

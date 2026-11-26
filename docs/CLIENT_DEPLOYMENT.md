@@ -1,6 +1,6 @@
 # BongoStock 客户端部署
 
-本文说明如何在 Windows 和 macOS 上从源码运行、验证并构建 BongoStock 客户端。`v1.0.0`、`v1.0.1` 与 `1.1.0` 的安装包已通过 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0) 发布，但均未进行代码签名/公证；`1.1.0` 的 macOS DMG 为 ad-hoc 签名、未公证，首次打开需右键 →「打开」手动放行。
+本文说明如何在 Windows 和 macOS 上从源码运行、验证并构建 BongoStock 客户端。`v1.0.0`、`v1.0.1`、`1.1.0` 与 `1.2.0` 的安装包已通过 GitHub Release 发布，但均未进行代码签名/公证；`1.2.0` 的 macOS DMG 为 ad-hoc 签名、未公证，首次打开需右键 →「打开」手动放行，Windows 安装器同样会触发 SmartScreen 提示。`1.2.0` 见 [GitHub Release 1.2.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.2.0)，更早版本见 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0)。
 
 ## 1. 支持范围
 
@@ -232,5 +232,5 @@ cargo test --locked
 
 - Windows 已有实机开发验证；Apple Silicon DMG 本地构建已验证，macOS 仍缺完整真机回归；
 - 没有自动更新、Windows 代码签名、Apple 签名或公证；
-- `v1.0.0`、`v1.0.1` 与 `1.1.0` 的安装包均已作为正式 Release 发布（Windows x64 NSIS + macOS Apple Silicon DMG，均未签名/公证）；
+- `v1.0.0`、`v1.0.1`、`1.1.0` 与 `1.2.0` 的安装包均已作为正式 Release 发布（Windows x64 NSIS + macOS Apple Silicon DMG，均未签名/公证）；
 - 设备迁移和私人皮肤边界见 [DEVICE_TRANSFER_CHECKLIST.md](DEVICE_TRANSFER_CHECKLIST.md)。

@@ -4,7 +4,7 @@
 
 ## 1.2.0 — 2026-11-26
 
-设置页整体重做，新增视频收藏与云端观看历史，浮窗可隐藏一小时、老板键只关浮窗不动桌宠。Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 同时提供（均未签名/公证）。
+设置页整体重做，新增视频收藏与云端观看历史，浮窗可隐藏一小时、老板键只关浮窗不动桌宠。Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 已通过 [GitHub Release 1.2.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.2.0) 发布（均未签名/公证）。
 
 ### 新增
 

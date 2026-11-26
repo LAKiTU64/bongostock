@@ -6,7 +6,7 @@
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
 - 变更记录：[CHANGELOG.md](CHANGELOG.md)
-- 安装包：`1.2.0` 的 Windows x64 NSIS 与 macOS Apple Silicon DMG 均未做代码签名/公证；macOS 为 ad-hoc 签名，首次打开需右键 →「打开」放行。上一版 `1.1.0` 见 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0)
+- 安装包：`1.2.0` 的 Windows x64 NSIS 与 macOS Apple Silicon DMG 见 [GitHub Release 1.2.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.2.0)，均未做代码签名/公证；macOS 为 ad-hoc 签名，首次打开需右键 →「打开」放行
 
 ## 目录
 
