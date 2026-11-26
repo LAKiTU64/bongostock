@@ -11,7 +11,7 @@ import type { ProgressReporter } from '@/market/progressReporter'
 
 import { useNativePageScroll } from '@/composables/useNativePageScroll'
 import { useTauriListen } from '@/composables/useTauriListen'
-import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
+import { LISTEN_KEY } from '@/constants'
 import { createBiliFavoritesSession } from '@/market/biliFavoritesSession'
 import { cloudHistoryItems, samePlaybackContext } from '@/market/biliHistory'
 import { createBiliHistorySession } from '@/market/biliHistorySession'
@@ -24,7 +24,7 @@ import { createPageGesture, wheelDirection } from '@/market/pageGesture'
 import { createProgressReporter } from '@/market/progressReporter'
 import { formatVideoTime } from '@/market/videoHistory'
 import { createWeeklyIssuesSession } from '@/market/weeklyIssues'
-import { showWindow } from '@/plugins/window'
+import { openVideoPreferences } from '@/plugins/window'
 import { useMarketStore } from '@/stores/market'
 
 import FeedContextPicker from './FeedContextPicker.vue'
@@ -327,10 +327,6 @@ function retry() {
   }
 }
 
-function openSettings() {
-  void showWindow(WINDOW_LABEL.PREFERENCE)
-}
-
 useEventListener(document, 'visibilitychange', () => {
   if (document.hidden) {
     if (!props.hiddenForPlayback) stop()
@@ -478,12 +474,11 @@ defineExpose({ refresh, pause: stop })
             v-else-if="needsLogin"
             class="hint"
           >
-            <p>请在设置的「行情」页登录 B 站。</p>
             <button
               type="button"
-              @click="openSettings"
+              @click="openVideoPreferences"
             >
-              打开设置
+              登录 B 站
             </button>
           </div>
           <div
@@ -497,9 +492,9 @@ defineExpose({ refresh, pause: stop })
             <button
               v-if="source === 'dynamic'"
               type="button"
-              @click="openSettings"
+              @click="openVideoPreferences"
             >
-              打开设置
+              登录 B 站
             </button>
             <button
               type="button"

@@ -26,13 +26,19 @@ export const recoveringWindows = ref(false)
 export const recoveringPanel = ref(false)
 let reportingError = false
 
-export async function reportWindowRecoveryError(error: unknown) {
+export async function logWindowError(operation: string, error: unknown) {
   const detail = error instanceof Error ? error.message : String(error)
-  await logError(`[window recovery] ${detail}`)
+  const entry = `[window:${WebviewWindow.getCurrent().label}] ${operation}: ${detail}`
+  await logError(entry).catch(() => console.error(entry))
+}
+
+// Only the explicit “Recover pet and panel” menu action needs user feedback.
+async function reportRecoveryFailure(error: unknown) {
+  await logWindowError('recover from menu', error)
   if (reportingError) return
   reportingError = true
   try {
-    await message(`${i18n.global.t('composables.useAppMenu.labels.recoveryFailed')}\n${detail}`, { kind: 'error' })
+    await message(i18n.global.t('composables.useAppMenu.labels.recoveryFailed'), { kind: 'error' })
   } finally {
     reportingError = false
   }
@@ -42,7 +48,7 @@ export async function requestWindowRecovery() {
   try {
     await invoke(`${COMMAND}request_window_recovery`)
   } catch (error) {
-    await reportWindowRecoveryError(error)
+    await reportRecoveryFailure(error)
   }
 }
 
@@ -140,8 +146,13 @@ export async function installPanelRecovery() {
 }
 
 async function persistWindow(window: WebviewWindow) {
-  const state = await saveWindowRect(window)
-  if (state) await useAppStore().saveWindowState(window.label, state)
+  try {
+    const state = await saveWindowRect(window)
+    if (state) await useAppStore().saveWindowState(window.label, state)
+  } catch (error) {
+    // Placement has already been verified; a failed save only affects the next launch.
+    await logWindowError(`save ${window.label} position`, error)
+  }
 }
 
 async function revealPet(pet: WebviewWindow) {
@@ -161,8 +172,11 @@ async function reopenPet() {
   const pet = WebviewWindow.getCurrent()
   await windowPositionQueue(async () => {
     if (await pet.isMinimized()) await pet.unminimize()
-    await ensureWindowOnScreen(pet)
-    await revealPet(pet)
+    try {
+      await ensureWindowOnScreen(pet)
+    } finally {
+      await revealPet(pet)
+    }
     await verifyPet(pet)
     await persistWindow(pet)
   })
@@ -236,14 +250,15 @@ export async function installWindowRecovery() {
             if (request === 'recover') await recoverDesktopWindows()
             else await reopenPet()
           } catch (error) {
-            await reportWindowRecoveryError(error)
+            if (request === 'recover') await reportRecoveryFailure(error)
+            else await logWindowError('reopen pet', error)
           } finally {
             recoveringWindows.value = false
           }
         }
       } while (requested)
     } catch (error) {
-      await reportWindowRecoveryError(error)
+      await logWindowError('read pending recovery request', error)
     } finally {
       draining = false
     }

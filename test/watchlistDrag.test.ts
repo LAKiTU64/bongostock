@@ -194,10 +194,12 @@ function setup(t: TestContext, geometryHitTesting = false) {
   pane.overflowY = 'auto'
   pane.maxScroll = 500
   const root = pane.append(new ElementFixture(20, 500))
-  const groupA = root.append(new ElementFixture(20, 240))
+  const groupList = root.append(new ElementFixture(20, 500))
+  groupList.dataset.watchlistGroups = ''
+  const groupA = groupList.append(new ElementFixture(20, 240))
   groupA.dataset.watchlistGroup = 'a'
   const groupHandle = groupA.append(new ElementFixture(20, 60))
-  const list = groupA.append(new ElementFixture(80, 240))
+  const list = root.append(new ElementFixture(80, 240))
   list.dataset.watchlistCodes = 'a'
   list.overflowY = 'auto'
   for (let index = 0; index < 3; index += 1) {
@@ -205,11 +207,11 @@ function setup(t: TestContext, geometryHitTesting = false) {
     row.dataset.watchlistCode = `SH60000${index + 1}`
   }
   const codeHandle = list.children[0]!.append(new ElementFixture(80, 120))
-  const groupB = root.append(new ElementFixture(260, 360))
+  const groupB = groupList.append(new ElementFixture(260, 360))
   groupB.dataset.watchlistGroup = 'b'
-  const otherList = groupB.append(new ElementFixture(280, 360))
+  const otherList = root.append(new ElementFixture(280, 360))
   otherList.dataset.watchlistCodes = 'b'
-  const groupC = root.append(new ElementFixture(380, 480))
+  const groupC = groupList.append(new ElementFixture(380, 480))
   groupC.dataset.watchlistGroup = 'c'
   let hit: ElementFixture | null = list
   function elementAtPoint(element: ElementFixture, x: number, y: number): ElementFixture | null {
@@ -329,7 +331,7 @@ test('pointer stock drop uses an end cue and commits once, leaving other groups 
   assert.deepEqual(f.calls, [['code', 'a', 0, 2]])
   assert.deepEqual(f.groups.value[0]!.codes, ['SH600002', 'SH600003', 'SH600001'])
   assert.deepEqual(f.groups.value[1]!.codes, initialGroups()[1]!.codes)
-  assert.match(f.drag.announcement.value, /第 3 项/)
+  assert.deepEqual(f.drag.announcement.value, { item: 'SH600001', position: 3 })
   f.clean()
 })
 
@@ -440,25 +442,17 @@ test('replacement, rename, stock edit and group removal invalidate a drag synchr
   }
 })
 
-test('handle keyboard sorting supports arrows and Home/End with boundary no-ops', (t) => {
+test('dragging a group onto the security pane cannot reorder either list', (t) => {
   const f = setup(t)
-  const key = (key: string, source: WatchlistDragSource) => {
-    const event = inputEvent('keydown', { key })
-    f.drag.keyboard(event as unknown as KeyboardEvent, source)
-    return event
-  }
-  assert.equal(key('Tab', codeSource).defaultPrevented, false)
-  key('ArrowUp', codeSource)
+  f.start(groupSource)
+  f.hit(f.groupC)
+  f.dispatch('pointermove', { clientY: 470 })
+  assert.equal(f.drag.groupCue('c', 2), 'drop-after')
+  f.hit(f.list)
+  f.dispatch('pointermove', { clientY: 470 })
+  assert.equal(f.drag.groupCue('c', 2), '')
+  f.dispatch('pointerup', { clientY: 470 })
   assert.deepEqual(f.calls, [])
-  key('ArrowDown', codeSource)
-  key('End', codeSource)
-  key('End', codeSource)
-  key('Home', codeSource)
-  assert.deepEqual(f.calls, [['code', 'a', 0, 1], ['code', 'a', 1, 2], ['code', 'a', 2, 0]])
-  key('End', groupSource)
-  key('ArrowUp', groupSource)
-  key('Home', groupSource)
-  assert.deepEqual(f.calls.slice(3), [['group', 0, 2], ['group', 2, 1], ['group', 1, 0]])
   f.clean()
 })
 
@@ -529,12 +523,12 @@ for (const edge of ['top', 'bottom'] as const) {
   })
 }
 
-test('auto-scroll reaches both outer pane edges for group dragging', (t) => {
+test('a fully visible group list stays in place when dragging near an unrelated panel edge', (t) => {
   const f = setup(t)
   f.start(groupSource)
   f.dispatch('pointermove', { clientY: 599 })
   for (let time = 16; time < 1000; time += 16) f.tick(time)
-  assert.equal(f.pane.scrollTop, f.pane.maxScroll)
+  assert.equal(f.pane.scrollTop, 0)
   f.dispatch('pointermove', { clientY: 1 })
   for (let time = 1000; time < 2000; time += 16) f.tick(time)
   assert.equal(f.pane.scrollTop, 0)

@@ -1,126 +1,143 @@
 <script setup lang="ts">
-import { HappyProvider } from '@antdv-next/happy-work-theme'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { ConfigProvider, Flex, theme } from 'antdv-next'
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { useEventListener } from '@vueuse/core'
+import { ConfigProvider, theme } from 'antdv-next'
+import { computed, defineAsyncComponent, onScopeDispose, ref, watch, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { getAntdLocale } from '@/locales/antd'
+import { PREFERENCE_DESTINATION } from '@/plugins/window'
 import { useAppStore } from '@/stores/app'
 import { useGeneralStore } from '@/stores/general'
 import { isMac } from '@/utils/platform'
 
 import 'antdv-next/dist/reset.css'
 
-const About = defineAsyncComponent(() => import('./components/about/index.vue'))
-const Cat = defineAsyncComponent(() => import('./components/cat/index.vue'))
-const General = defineAsyncComponent(() => import('./components/general/index.vue'))
-const Market = defineAsyncComponent(() => import('./components/market/index.vue'))
-const Shortcut = defineAsyncComponent(() => import('./components/shortcut/index.vue'))
+import './settings.css'
 
-const appStore = useAppStore()
-const current = ref(0)
+const pages = {
+  general: { icon: 'i-lucide:settings-2', component: defineAsyncComponent(() => import('./components/general/index.vue')) },
+  connection: { icon: 'i-lucide:plug', component: defineAsyncComponent(() => import('./components/connection/index.vue')) },
+  style: { icon: 'i-lucide:palette', component: defineAsyncComponent(() => import('./components/cat/index.vue')) },
+  market: { icon: 'i-lucide:chart-no-axes-combined', component: defineAsyncComponent(() => import('./components/market/index.vue')) },
+  video: { icon: 'i-lucide:play-square', component: defineAsyncComponent(() => import('./components/video/index.vue')) },
+  about: { icon: 'i-lucide:info', component: defineAsyncComponent(() => import('./components/about/index.vue')) },
+} as const
+
 const { t } = useI18n()
-const generalStore = useGeneralStore()
+const app = useAppStore()
+const general = useGeneralStore()
 const appWindow = getCurrentWebviewWindow()
-const { darkAlgorithm, defaultAlgorithm } = theme
+const current = ref<keyof typeof pages>('general')
 
-watch(() => generalStore.appearance.language, () => {
-  appWindow.setTitle(t('pages.preference.title'))
+function selectRequestedPage() {
+  if (localStorage.getItem(PREFERENCE_DESTINATION) === 'video') {
+    current.value = 'video'
+    localStorage.removeItem(PREFERENCE_DESTINATION)
+  }
+}
+selectRequestedPage()
+useEventListener(window, 'storage', (event) => {
+  if (event.key === PREFERENCE_DESTINATION) selectRequestedPage()
+})
+useEventListener(window, 'focus', selectRequestedPage)
+
+watchEffect(() => {
+  void appWindow.setTitle(t('pages.preference.title'))
+})
+
+// Apply the native window preference even when the appearance page is closed.
+watch(() => general.appearance.theme, async (mode, _, onCleanup) => {
+  let active = true
+  onCleanup(() => {
+    active = false
+  })
+  const nativeTheme = mode === 'auto' ? null : mode
+  await appWindow.setTheme(nativeTheme)
+  const nextTheme = nativeTheme ?? await appWindow.theme()
+  if (active) general.appearance.isDark = nextTheme === 'dark'
 }, { immediate: true })
+const stopThemeListener = appWindow.onThemeChanged(({ payload }) => {
+  if (general.appearance.theme === 'auto') general.appearance.isDark = payload === 'dark'
+})
+onScopeDispose(() => {
+  void stopThemeListener.then(stop => stop())
+})
+watchEffect(() => document.documentElement.classList.toggle('dark', general.appearance.isDark))
 
-const menus = computed(() => [
-  {
-    key: 'cat',
-    label: t('pages.preference.cat.title'),
-    icon: 'i-solar:cat-bold',
-    component: Cat,
-  },
-  {
-    key: 'general',
-    label: t('pages.preference.general.title'),
-    icon: 'i-solar:settings-minimalistic-bold',
-    component: General,
-  },
-  {
-    key: 'market',
-    label: t('pages.preference.market.title'),
-    icon: 'i-solar:chart-2-bold',
-    component: Market,
-  },
-  {
-    key: 'shortcut',
-    label: t('pages.preference.shortcut.title'),
-    icon: 'i-solar:keyboard-bold',
-    component: Shortcut,
-  },
-  {
-    key: 'about',
-    label: t('pages.preference.about.title'),
-    icon: 'i-solar:info-circle-bold',
-    component: About,
-  },
-])
+const design = computed(() => {
+  const dark = general.appearance.isDark
+  return {
+    algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    token: {
+      colorPrimary: dark ? '#e5c3a4' : '#755946',
+      colorLink: dark ? '#e5c3a4' : '#755946',
+      colorText: dark ? '#f8efe4' : '#443d3e',
+      colorTextSecondary: dark ? '#c6b8aa' : '#73675f',
+      colorBorder: dark ? '#51483f' : '#ddd6cf',
+      colorBgContainer: dark ? '#2b2623' : '#fffaf3',
+      colorBgElevated: dark ? '#352f2a' : '#fffaf3',
+      borderRadius: 7,
+      fontFamily: 'var(--font-ui)',
+    },
+  }
+})
 </script>
 
 <template>
-  <HappyProvider
-    v-slot="{ wave }"
-    enabled
+  <ConfigProvider
+    :locale="getAntdLocale(general.appearance.language)"
+    :theme="design"
   >
-    <ConfigProvider
-      :locale="getAntdLocale(generalStore.appearance.language)"
-      :theme="{
-        algorithm: generalStore.appearance.isDark ? darkAlgorithm : defaultAlgorithm,
-      }"
-      :wave="wave"
+    <div
+      class="preferences"
+      :class="{ 'preferences-mac': isMac }"
     >
-      <Flex class="h-screen">
+      <aside class="preferences-sidebar">
         <div
-          class="h-full w-30 flex flex-col items-center gap-4 overflow-auto bg-gradient-from-blue-1 bg-gradient-to-black/1 bg-gradient-linear dark:bg-none"
-          :class="[isMac ? 'pt-8' : 'pt-4']"
+          class="preferences-brand"
           data-tauri-drag-region
         >
-          <div class="flex flex-col items-center gap-2">
-            <div class="b-1 b-solid b-border-sec rounded-2xl">
-              <img
-                class="size-15"
-                data-tauri-drag-region
-                src="/logo.png"
-              >
-            </div>
-
-            <span class="font-bold">{{ appStore.name }}</span>
-          </div>
-
-          <div class="flex flex-col gap-2">
-            <div
-              v-for="(item, index) in menus"
-              :key="item.key"
-              class="size-20 flex flex-col cursor-pointer items-center justify-center gap-2 transition color-text-tertiary rounded-lg hover:bg-[--ant-color-fill-tertiary] dark:color-text-secondary"
-              :class="{ 'bg-container! color-blue-5! dark:color-blue-7! font-bold dark:bg-[--ant-color-fill-quaternary]!': current === index }"
-              @click="current = index"
+          <img
+            alt=""
+            data-tauri-drag-region
+            src="/logo.png"
+          >
+          <span data-tauri-drag-region>{{ app.name }}</span>
+        </div>
+        <nav :aria-label="t('pages.preference.title')">
+          <button
+            v-for="(page, key) in pages"
+            :key="key"
+            :aria-current="current === key ? 'page' : undefined"
+            type="button"
+            @click="current = key"
+          >
+            <i
+              aria-hidden="true"
+              :class="page.icon"
+            />
+            {{ t(`pages.preference.navigation.${key}`) }}
+          </button>
+        </nav>
+      </aside>
+      <main
+        :key="current"
+        aria-labelledby="preferences-title"
+        class="preferences-pane"
+      >
+        <div class="preferences-content">
+          <header data-tauri-drag-region>
+            <h1
+              id="preferences-title"
+              data-tauri-drag-region
             >
-              <div
-                class="size-8"
-                :class="item.icon"
-              />
-
-              <span>{{ item.label }}</span>
-            </div>
-          </div>
+              {{ t(`pages.preference.navigation.${current}`) }}
+            </h1>
+          </header>
+          <component :is="pages[current].component" />
         </div>
-
-        <div
-          v-for="(item, index) in menus"
-          v-show="current === index"
-          :key="item.key"
-          class="flex-1 overflow-auto bg-[--ant-color-fill-quaternary] p-4 dark:bg-container"
-          data-tauri-drag-region
-        >
-          <component :is="item.component" />
-        </div>
-      </Flex>
-    </ConfigProvider>
-  </HappyProvider>
+      </main>
+    </div>
+  </ConfigProvider>
 </template>

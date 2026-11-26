@@ -135,14 +135,16 @@
           "togglePreferences": "Abrir Preferências",
           "mirrorMode": "Modo Espelho",
           "passThrough": "Janela Transparente",
-          "alwaysOnTop": "Sempre no Topo"
+          "alwaysOnTop": "Sempre no Topo",
+          "bossKey": "Tecla de ocultação rápida"
         },
         "hints": {
           "toggleCat": "Alternar a visibilidade da janela do gato.",
           "togglePreferences": "Alternar a visibilidade da janela de preferências.",
           "mirrorMode": "Alternar o modo espelho do gato.",
           "passThrough": "Alternar se a janela do gato é clicável.",
-          "alwaysOnTop": "Alternar se a janela do gato permanece no topo."
+          "alwaysOnTop": "Alternar se a janela do gato permanece no topo.",
+          "bossKey": "Fecha imediatamente o painel flutuante e interrompe a reprodução do vídeo"
         }
       },
       "about": {
@@ -152,7 +154,10 @@
           "appLog": "Logs do Aplicativo",
           "appInfo": "Informações do Aplicativo",
           "openSource": "Código Aberto",
-          "acknowledgements": "Agradecimentos"
+          "acknowledgements": "Agradecimentos",
+          "licenses": "Código aberto",
+          "thirdParty": "Avisos de terceiros",
+          "source": "Código-fonte"
         },
         "hints": {
           "appInfo": "Copiar informações do aplicativo para incluir em relatórios de bugs.",
@@ -160,10 +165,18 @@
         },
         "buttons": {
           "checkUpdate": "Verificar atualizações",
-          "copy": "Copiar",
+          "copy": "Copiar informações de diagnóstico",
           "feedbackIssues": "Reportar Problema",
           "viewLog": "Ver Logs"
         }
+      },
+      "navigation": {
+        "general": "Geral",
+        "connection": "Conexão",
+        "style": "Aparência",
+        "market": "Mercado",
+        "video": "Vídeo",
+        "about": "Sobre"
       }
     }
   },
@@ -198,7 +211,7 @@
         "hideCat": "Ocultar Gato",
         "showCat": "Mostrar Gato",
         "recoverWindows": "Recuperar Gato e Painel",
-        "recoveryFailed": "Não foi possível recuperar as janelas. Tente novamente ou reconecte o monitor.",
+        "recoveryFailed": "Não foi possível recuperar as janelas. Tente novamente.",
         "passThrough": "Janela Transparente",
         "windowSize": "Tamanho da Janela",
         "opacity": "Opacidade",

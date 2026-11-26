@@ -4,11 +4,11 @@
 
 ## 当前阶段
 
-BongoStock 已发布 `v1.0.0`、`v1.0.1` 与 `1.1.0`，资讯中心 Phase 0～6 已实现。工作区当前为 `1.1.0`（自选云端双向同步 v2 + 分组重排）。
+BongoStock 已发布 `v1.0.0`、`v1.0.1` 与 `1.1.0`，资讯中心 Phase 0～6 已实现。工作区当前为 `1.2.0`（新版客户端设置）。
 
 - 公开仓库：<https://github.com/LAKiTU64/bongostock>
 - 默认分支：`main`
-- 应用版本：`1.1.0`
+- 应用版本：`1.2.0`
 - Bundle Identifier：`com.bongostock.desktop`
 - 正式发布：`v1.0.0`、`v1.0.1` 与 `1.1.0` 均已发布——Windows x64 NSIS 安装包与 macOS Apple Silicon DMG 见 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0)；暂无代码签名、公证或自动更新
 - 变更记录：见仓库根目录 `CHANGELOG.md`

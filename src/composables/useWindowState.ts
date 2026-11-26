@@ -5,15 +5,15 @@ import { useDebounceFn } from '@vueuse/core'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { WINDOW_LABEL } from '@/constants'
-import { reportWindowRecoveryError } from '@/plugins/windowRecovery'
+import { logWindowError } from '@/plugins/windowRecovery'
 import { useAppStore } from '@/stores/app'
 import { useCatStore } from '@/stores/cat'
 import { useSkinStore } from '@/stores/skin'
 import { compactPetLayout } from '@/utils/petLayout'
 import { isMac } from '@/utils/platform'
-import { restorePosition, validSize } from '@/utils/windowGeometry'
+import { restorePosition, validSize, visibleOnDesktop } from '@/utils/windowGeometry'
 import { coordinateSpace, desktopGeometry, ensureWindowOnScreen, isPositioning, placeWindow, readWindowRect, saveWindowRect, windowPositionQueue } from '@/utils/windowPlacement'
-import { createWindowStateRecorder } from '@/utils/windowStateLifecycle'
+import { createWindowStateRecorder, hasMixedWindowUnits, stateForWindowPosition } from '@/utils/windowStateLifecycle'
 
 // Exit and restart menu actions are both owned by the main webview.
 let flushMainWindow: (() => Promise<void>) | undefined
@@ -52,12 +52,12 @@ export function useWindowState() {
       if (disposed || await appWindow.isMinimized()) return
       await ensureWindowOnScreen(appWindow)
       await save()
-    }).catch(reportWindowRecoveryError)
+    }).catch(error => logWindowError('keep window on screen', error))
   }, 180)
 
   const handleChange = (moved: boolean) => {
     if (!isRestored.value || disposed || isPositioning()) return
-    void recorder.record(moved).catch(reportWindowRecoveryError)
+    void recorder.record(moved).catch(error => logWindowError('record window state', error))
     void correctAfterDrag()
   }
 
@@ -71,7 +71,7 @@ export function useWindowState() {
         if (disposed) unlisten()
         else unlisteners.push(unlisten)
       }).catch((error) => {
-        if (!disposed) void reportWindowRecoveryError(error)
+        if (!disposed) void logWindowError('subscribe to window changes', error)
       })
     }
   })
@@ -91,7 +91,7 @@ export function useWindowState() {
           const builtin = skinStore.findBuiltin(skinStore.resolveId(catStore.skin))
           const layout = compactPetLayout(Boolean(builtin), catStore.window.scale, isMac ? 1 : globalThis.devicePixelRatio)
           await appWindow.setSize(new LogicalSize(layout.windowWidth, layout.windowHeight))
-        } else if (label !== WINDOW_LABEL.STOCK_PANEL && saved && validSize(saved) && saved.width <= 8192 && saved.height <= 8192) {
+        } else if (label !== WINDOW_LABEL.STOCK_PANEL && saved && !hasMixedWindowUnits(saved) && validSize(saved) && saved.width <= 8192 && saved.height <= 8192) {
           await appWindow.setSize(saved.version === 2 && saved.space === 'macos-logical'
             ? new LogicalSize(saved.width, saved.height)
             : new PhysicalSize(saved.width, saved.height))
@@ -99,13 +99,15 @@ export function useWindowState() {
       }, async () => {
         const current = await readWindowRect(appWindow)
         const { screens, primaryId } = await desktopGeometry()
-        const target = restorePosition(saved, coordinateSpace, current, screens, primaryId)
+        const target = restorePosition(stateForWindowPosition(saved, current), coordinateSpace, current, screens, primaryId)
         if (disposed) return
-        await placeWindow(appWindow, target, screens)
-        if (!disposed) await save()
+        if (Math.abs(current.x - target.x) > 1 || Math.abs(current.y - target.y) > 1 || !visibleOnDesktop(current, screens)) {
+          await placeWindow(appWindow, target, screens)
+        }
+        if (!disposed) await save().catch(error => logWindowError('save initial position', error))
       }))
     } catch (error) {
-      if (!disposed) await reportWindowRecoveryError(error)
+      if (!disposed) await logWindowError('initialize window placement', error)
     } finally {
       // Keep the menu reachable even if the OS refused a positioning request.
       if (!disposed) isRestored.value = true

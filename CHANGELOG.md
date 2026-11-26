@@ -2,6 +2,10 @@
 
 本文件记录已发布版本之间的用户可见变化。日期使用本地时区。
 
+## 1.2.0 （未发布）
+
+- 重做客户端设置，独立管理云端连接，支持拖动排序自选分组及证券。
+
 ## 1.1.0 — 2026-08-28
 
 自选云端双向同步 v2 + 分组重排 + 行情彻底云端化。Windows x64 NSIS 安装包与 macOS DMG 已通过 [GitHub Release 1.1.0](https://github.com/LAKiTU64/bongostock/releases/tag/1.1.0) 发布。

@@ -15,7 +15,7 @@ import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
 import { hidePanelForHour as hideNativePanelForHour, hideWindow, showWindow } from '@/plugins/window'
-import { installPanelRecovery, recoveringPanel, reportWindowRecoveryError } from '@/plugins/windowRecovery'
+import { installPanelRecovery, logWindowError, recoveringPanel } from '@/plugins/windowRecovery'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
 import { ensureWindowOnScreen, windowPositionQueue } from '@/utils/windowPlacement'
@@ -212,7 +212,7 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
     if (!restoreState) {
       await setPanelMode('market')
       closeDetail()
-      await positionStockPanelNearPet()
+      await positionStockPanelNearPet().catch(error => logWindowError('position panel near pet', error))
     } else {
       await resizePanel()
     }
@@ -222,7 +222,7 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
     resetIdleFade()
     void refreshQuotes()
     startAutoRefresh()
-  }).catch(reportWindowRecoveryError)
+  }).catch(error => logWindowError('open stock panel', error))
 })
 
 useTauriListen<StockPanelCloseReason>(LISTEN_KEY.CLOSE_STOCK_PANEL, ({ payload }) => {
@@ -401,7 +401,7 @@ function handleDragPointerMove(event: PointerEvent) {
 
   if (dragPointerStart.toolbar) suppressToolbarClick = true
   dragPointerStart = undefined
-  void appWindow.startDragging().catch(reportWindowRecoveryError)
+  void appWindow.startDragging().catch(error => logWindowError('drag stock panel', error))
 }
 
 function handleDragPointerEnd(event: PointerEvent) {
@@ -593,7 +593,7 @@ async function setPanelMode(mode: 'market' | 'news' | 'fun') {
 async function resizePanel() {
   await nextTick()
   await appWindow.setSize(new LogicalSize(STOCK_PANEL_WIDTH, STOCK_PANEL_HEIGHT))
-  await ensureWindowOnScreen(appWindow)
+  await ensureWindowOnScreen(appWindow).catch(error => logWindowError('fit panel to desktop', error))
 }
 
 function handleRefresh() {
@@ -634,7 +634,7 @@ function hidePanelForHour() {
       }
       throw error
     }
-  }).catch(reportWindowRecoveryError)
+  }).catch(error => logWindowError('hide stock panel', error))
 }
 
 function canClosePanel(retainState: boolean) {
@@ -644,7 +644,7 @@ function canClosePanel(retainState: boolean) {
 
 function closePanel(retainState: boolean) {
   if (!canClosePanel(retainState)) return Promise.resolve()
-  return windowPositionQueue(() => performClosePanel(retainState)).catch(reportWindowRecoveryError)
+  return windowPositionQueue(() => performClosePanel(retainState)).catch(error => logWindowError('close stock panel', error))
 }
 
 async function performClosePanel(retainState: boolean) {

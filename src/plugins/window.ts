@@ -2,9 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 
-import type { WINDOW_LABEL } from '../constants'
-
-import { LISTEN_KEY } from '../constants'
+import { LISTEN_KEY, WINDOW_LABEL } from '../constants'
 
 export type WindowLabel = typeof WINDOW_LABEL[keyof typeof WINDOW_LABEL]
 
@@ -24,6 +22,20 @@ export function showWindow(label?: WindowLabel) {
   }
 
   return invoke(COMMAND.SHOW_WINDOW)
+}
+
+// The destination survives creation of a preference webview that has not mounted yet.
+// Storage events deliver the same request to an already-open preference window.
+export const PREFERENCE_DESTINATION = 'bongostock.preference.destination'
+
+export async function openVideoPreferences() {
+  localStorage.setItem(PREFERENCE_DESTINATION, 'video')
+  try {
+    await showWindow(WINDOW_LABEL.PREFERENCE)
+  } catch (error) {
+    localStorage.removeItem(PREFERENCE_DESTINATION)
+    throw error
+  }
 }
 
 export function hideWindow(label?: WindowLabel) {

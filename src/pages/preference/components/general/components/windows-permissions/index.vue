@@ -1,76 +1,70 @@
+<script lang="ts">
+</script>
+
 <script setup lang="ts">
 import { confirm } from '@tauri-apps/plugin-dialog'
 import { exit } from '@tauri-apps/plugin-process'
-import { Space, Switch } from 'antdv-next'
+import { Switch } from 'antdv-next'
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
 import { isRunningAsAdministrator } from '@/plugins/adminStatus'
 import { useGeneralStore } from '@/stores/general'
 
-const authorized = ref(true)
-const { t } = useI18n()
-const generalStore = useGeneralStore()
+let promptedThisSession = false
 
+const authorized = ref<boolean>()
+const { t } = useI18n()
+const store = useGeneralStore()
 onMounted(async () => {
   authorized.value = await isRunningAsAdministrator()
-
-  if (authorized.value || generalStore.app.suppressAdminPrompt) return
-
-  showAdministratorGuide()
+  if (authorized.value || promptedThisSession || store.app.suppressAdminPrompt) return
+  promptedThisSession = true
+  await showGuide()
 })
-
-async function showAdministratorGuide() {
-  const confirmed = await confirm(t('pages.preference.general.hints.administratorPermissionGuide'), {
+async function showGuide() {
+  if (await confirm(t('pages.preference.general.hints.administratorPermissionGuide'), {
     title: t('pages.preference.general.labels.administratorPermission'),
     okLabel: t('pages.preference.general.buttons.exitApp'),
     cancelLabel: t('pages.preference.general.buttons.setLater'),
     kind: 'warning',
-  })
-
-  if (!confirmed) return
-
-  exit(0)
+  })) {
+    await exit(0)
+  }
 }
 </script>
 
 <template>
-  <ProList
-    :title="$t('pages.preference.general.labels.permissionsSettings')"
-  >
-    <ProListItem
-      :description="$t('pages.preference.general.hints.administratorPermission')"
-      :title="$t('pages.preference.general.labels.administratorPermission')"
-    >
-      <Space
+  <ProList :title="t('pages.preference.general.labels.permissionsSettings')">
+    <div class="settings-row">
+      <span>{{ t('pages.preference.general.labels.administratorPermission') }}</span>
+      <span
         v-if="authorized"
-        class="text-success font-bold"
-        :size="4"
+        class="admin-status"
+      >{{ t('pages.preference.general.status.adminEnabled') }}</span>
+      <button
+        v-else-if="authorized === false"
+        class="settings-button"
+        type="button"
+        @click="showGuide"
       >
-        <div class="i-solar:verified-check-bold text-4.5" />
-
-        <span class="whitespace-nowrap">{{ $t('pages.preference.general.status.adminEnabled') }}</span>
-      </Space>
-
-      <Space
-        v-else
-        class="cursor-pointer text-error font-bold"
-        :size="4"
-        @click="showAdministratorGuide"
-      >
-        <div class="i-solar:round-arrow-right-bold text-4.5" />
-
-        <span class="whitespace-nowrap">{{ $t('pages.preference.general.status.viewGuide') }}</span>
-      </Space>
-    </ProListItem>
-
-    <ProListItem
-      :description="$t('pages.preference.general.hints.suppressAdminPrompt')"
-      :title="$t('pages.preference.general.labels.suppressAdminPrompt')"
-    >
-      <Switch v-model:checked="generalStore.app.suppressAdminPrompt" />
-    </ProListItem>
+        {{ t('pages.preference.general.status.viewGuide') }}
+      </button>
+    </div>
+    <div class="settings-row">
+      <span id="admin-prompt-label">{{ t('pages.preference.general.labels.suppressAdminPrompt') }}</span>
+      <Switch
+        v-model:checked="store.app.suppressAdminPrompt"
+        aria-labelledby="admin-prompt-label"
+      />
+    </div>
   </ProList>
 </template>
+
+<style scoped>
+.admin-status {
+  color: var(--settings-accent);
+  font-size: 12px;
+}
+</style>

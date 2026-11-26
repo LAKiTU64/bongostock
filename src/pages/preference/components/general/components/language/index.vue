@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { Select } from 'antdv-next'
-
-import type { Language } from '@/stores/general'
-
-import ProListItem from '@/components/pro-list-item/index.vue'
 import { LANGUAGE } from '@/constants'
+import SettingsSelect from '@/pages/preference/components/SettingsSelect.vue'
 import { useGeneralStore } from '@/stores/general'
 
 const generalStore = useGeneralStore()
-
-const options: Array<{ label: string, value: Language }> = [
+const options = [
   { label: '简体中文', value: LANGUAGE.ZH_CN },
   { label: '繁體中文', value: LANGUAGE.ZH_TW },
   { label: 'English', value: LANGUAGE.EN_US },
@@ -19,10 +14,13 @@ const options: Array<{ label: string, value: Language }> = [
 </script>
 
 <template>
-  <ProListItem :title="$t('pages.preference.general.labels.language')">
-    <Select
-      v-model:value="generalStore.appearance.language"
+  <div class="settings-row">
+    <label for="settings-language">{{ $t('pages.preference.general.labels.language') }}</label>
+    <SettingsSelect
+      id="settings-language"
+      v-model="generalStore.appearance.language"
+      :label="$t('pages.preference.general.labels.language')"
       :options="options"
     />
-  </ProListItem>
+  </div>
 </template>

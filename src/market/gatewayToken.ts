@@ -12,7 +12,7 @@ export const keychainEnabled = !import.meta.env.DEV
 export const tokenStorageLabel = keychainEnabled ? '系统凭据库' : '本地配置文件（开发模式）'
 export const tokenStored = ref(false)
 
-/** 写入系统凭据库成功之前保留旧文件，迁移失败不能丢掉现有令牌。 */
+/** 写入系统凭据库成功之前保留旧文件，迁移失败不能丢掉现有 Token。 */
 async function readLegacyToken(): Promise<string> {
   try {
     const path = await join(await appDataDir(), 'tauri-plugin-pinia', 'market.json')
@@ -60,7 +60,7 @@ export async function syncGatewayToken(pinia?: Pinia) {
       tokenStored.value = true
     } catch {
       tokenStored.value = false
-      console.warn('[bongostock] 迁移令牌失败，已保留原配置')
+      console.warn('[bongostock] 迁移 Token 失败，已保留原配置')
       return
     }
   } else {
@@ -72,7 +72,7 @@ export async function syncGatewayToken(pinia?: Pinia) {
     try {
       await removeLegacyToken()
     } catch {
-      console.warn('[bongostock] 令牌已存入系统凭据库，但旧配置字段清理失败')
+      console.warn('[bongostock] Token 已存入系统凭据库，但旧配置字段清理失败')
     }
   }
 }

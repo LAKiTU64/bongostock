@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 
-import { nextTick, onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { onScopeDispose, shallowRef, watch } from 'vue'
 
 interface DragGroup {
   id: string
@@ -52,7 +52,7 @@ interface DragOptions {
 export function useWatchlistDrag(options: DragOptions) {
   const active = shallowRef<WatchlistDragSource | null>(null)
   const target = shallowRef<WatchlistDragTarget | null>(null)
-  const announcement = ref('')
+  const announcement = shallowRef<'cancelled' | { item: string, position: number } | null>(null)
   let session: {
     source: WatchlistDragSource
     snapshot: string
@@ -74,7 +74,7 @@ export function useWatchlistDrag(options: DragOptions) {
   function cancel() {
     const previous = session
     session = null
-    if (active.value) announcement.value = '已取消排序'
+    if (active.value) announcement.value = 'cancelled'
     active.value = null
     target.value = null
     cancelAnimationFrame(frame)
@@ -94,10 +94,10 @@ export function useWatchlistDrag(options: DragOptions) {
     const move = resolveWatchlistDrop(options.groups(), source, drop)
     if (!move) return
     const group = options.groups().find(group => group.id === source.groupId)!
-    const label = source.kind === 'group' ? `分组“${group.name}”` : `${group.name}中的${source.code}`
+    const label = source.kind === 'group' ? group.name : source.code
     if (move.kind === 'group') options.moveGroup(move.from, move.to)
     else options.moveCode(move.groupId, move.from, move.to)
-    announcement.value = `${label}已移至第 ${move.to + 1} 项`
+    announcement.value = { item: label, position: move.to + 1 }
   }
 
   function hitTest(): WatchlistDragTarget | null {
@@ -108,10 +108,13 @@ export function useWatchlistDrag(options: DragOptions) {
     // Hit testing (rather than captured event.target) rejects overlays and out-of-list drops.
     if (!hit || !root.contains(hit)) return null
     if (source.kind === 'group') {
-      const sections = [...root.querySelectorAll<HTMLElement>('[data-watchlist-group]')]
+      const list = hit.closest<HTMLElement>('[data-watchlist-groups]')
+      if (!list) return null
+      const sections = [...list.querySelectorAll<HTMLElement>('[data-watchlist-group]')]
       const before = sections.find(section => y < midpoint(section))?.dataset.watchlistGroup ?? null
       return { kind: 'group', before }
     }
+    if (hit.closest('[data-watchlist-remove]')) return null
     const list = hit.closest<HTMLElement>('[data-watchlist-codes]')
     if (!list || list.dataset.watchlistCodes !== source.groupId) return null
     const rows = [...list.querySelectorAll<HTMLElement>('[data-watchlist-code]')]
@@ -137,8 +140,8 @@ export function useWatchlistDrag(options: DragOptions) {
     }
     const seconds = Math.min((time - (lastFrame || time)) / 1000, 0.04)
     lastFrame = time
-    const sourceList = session.source.kind === 'code' ? session.handle.closest<HTMLElement>('[data-watchlist-codes]') : null
-    // Start with the stock list; outer panes may reveal a clipped list edge, but
+    const sourceList = session.handle.closest<HTMLElement>(session.source.kind === 'code' ? '[data-watchlist-codes]' : '[data-watchlist-groups]')
+    // Start with the source list; outer panes may reveal a clipped list edge, but
     // must not keep scrolling the source list away once that edge is visible.
     // Intersect with every clipping ancestor so partly offscreen lists still have reachable edges.
     for (const element of session.scrollParents) {
@@ -256,28 +259,6 @@ export function useWatchlistDrag(options: DragOptions) {
     if (document.hidden) cancel()
   }
 
-  function keyboard(event: KeyboardEvent, source: WatchlistDragSource) {
-    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
-    event.preventDefault()
-    event.stopPropagation()
-    cancel()
-    const group = options.groups().find(group => group.id === source.groupId)
-    if (!group) return
-    const items = source.kind === 'group' ? options.groups().map(group => group.id) : group.codes
-    const index = items.indexOf(source.kind === 'group' ? source.groupId : source.code)
-    if (index < 0) return
-    const to = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : index + (event.key === 'ArrowUp' ? -1 : 1)
-    if (to < 0 || to >= items.length || to === index) return
-    const before = items[to > index ? to + 1 : to] ?? null
-    apply(source, source.kind === 'group' ? { kind: 'group', before } : { kind: 'code', groupId: source.groupId, before })
-    const handle = event.currentTarget as HTMLElement | null
-    void nextTick(() => {
-      if (!handle?.isConnected || !handle.getClientRects().length) return
-      handle.focus({ preventScroll: true })
-      handle.scrollIntoView({ block: 'nearest' })
-    })
-  }
-
   // Cancel even if a same-valued remote replacement arrives; never commit an old gesture over it.
   watch(options.groups, cancel, { deep: true, flush: 'sync' })
   onScopeDispose(cancel)
@@ -295,5 +276,5 @@ export function useWatchlistDrag(options: DragOptions) {
     return target.value.before === null && index === (group?.codes.length ?? 0) - 1 ? 'drop-after' : ''
   }
 
-  return { active, announcement, start, keyboard, groupCue, codeCue, cancel }
+  return { active, announcement, start, groupCue, codeCue, cancel }
 }

@@ -135,14 +135,16 @@
           "togglePreferences": "Toggle Preferences",
           "mirrorMode": "Mirror Mode",
           "passThrough": "Pass Through",
-          "alwaysOnTop": "Always on Top"
+          "alwaysOnTop": "Always on Top",
+          "bossKey": "Boss key"
         },
         "hints": {
           "toggleCat": "Toggle the visibility of the cat window.",
           "togglePreferences": "Toggle the visibility of the preferences window.",
           "mirrorMode": "Toggle the cat's mirror mode.",
           "passThrough": "Toggle whether the cat window is pass-through.",
-          "alwaysOnTop": "Toggle whether the cat window stays on top."
+          "alwaysOnTop": "Toggle whether the cat window stays on top.",
+          "bossKey": "Immediately closes the floating panel and stops video playback"
         }
       },
       "about": {
@@ -152,7 +154,10 @@
           "appLog": "App Logs",
           "appInfo": "App Info",
           "openSource": "Open Source",
-          "acknowledgements": "Acknowledgements"
+          "acknowledgements": "Acknowledgements",
+          "licenses": "Open source",
+          "thirdParty": "Third-party notices",
+          "source": "Source code"
         },
         "hints": {
           "appInfo": "Copy app information and provide it to bug issue.",
@@ -160,10 +165,18 @@
         },
         "buttons": {
           "checkUpdate": "Check for Updates",
-          "copy": "Copy",
+          "copy": "Copy diagnostic information",
           "feedbackIssues": "Feedback Issues",
           "viewLog": "View Logs"
         }
+      },
+      "navigation": {
+        "general": "General",
+        "connection": "Connection",
+        "style": "Appearance",
+        "market": "Markets",
+        "video": "Video",
+        "about": "About"
       }
     }
   },
@@ -198,7 +211,7 @@
         "hideCat": "Hide Cat",
         "showCat": "Show Cat",
         "recoverWindows": "Recover Pet and Panel",
-        "recoveryFailed": "Window recovery failed. Try again or reconnect the display.",
+        "recoveryFailed": "Could not recover the windows. Please try again.",
         "passThrough": "Pass Through",
         "windowSize": "Window Size",
         "opacity": "Opacity",

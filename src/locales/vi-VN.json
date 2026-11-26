@@ -135,14 +135,16 @@
           "togglePreferences": "Mở Tùy chỉnh",
           "mirrorMode": "Chế độ gương",
           "passThrough": "Click xuyên",
-          "alwaysOnTop": "Luôn trên cùng"
+          "alwaysOnTop": "Luôn trên cùng",
+          "bossKey": "Phím ẩn nhanh"
         },
         "hints": {
           "toggleCat": "Bật/Tắt cửa sổ mèo.",
           "togglePreferences": "Bật/Tắt cửa sổ tùy chỉnh.",
           "mirrorMode": "Bật/Tắt chế độ gương.",
           "passThrough": "Bật/Tắt cho phép click xuyên cửa sổ mèo.",
-          "alwaysOnTop": "Bật/Tắt luôn giữ cửa sổ mèo trên cùng."
+          "alwaysOnTop": "Bật/Tắt luôn giữ cửa sổ mèo trên cùng.",
+          "bossKey": "Đóng ngay cửa sổ nổi và dừng phát video"
         }
       },
       "about": {
@@ -152,7 +154,10 @@
           "appLog": "Nhật ký ứng dụng",
           "appInfo": "Thông tin ứng dụng",
           "openSource": "Mã nguồn",
-          "acknowledgements": "Lời cảm ơn"
+          "acknowledgements": "Lời cảm ơn",
+          "licenses": "Mã nguồn mở",
+          "thirdParty": "Thông báo của bên thứ ba",
+          "source": "Mã nguồn"
         },
         "hints": {
           "appInfo": "Sao chép thông tin để gửi bug.",
@@ -160,10 +165,18 @@
         },
         "buttons": {
           "checkUpdate": "Kiểm tra cập nhật",
-          "copy": "Sao chép",
+          "copy": "Sao chép thông tin chẩn đoán",
           "feedbackIssues": "Báo lỗi",
           "viewLog": "Xem nhật ký"
         }
+      },
+      "navigation": {
+        "general": "Chung",
+        "connection": "Kết nối",
+        "style": "Giao diện",
+        "market": "Thị trường",
+        "video": "Video",
+        "about": "Giới thiệu"
       }
     }
   },
@@ -198,7 +211,7 @@
         "hideCat": "Ẩn Mèo",
         "showCat": "Hiện Mèo",
         "recoverWindows": "Đưa mèo và bảng về màn hình",
-        "recoveryFailed": "Không thể khôi phục cửa sổ. Hãy thử lại hoặc kết nối lại màn hình.",
+        "recoveryFailed": "Không thể khôi phục cửa sổ. Vui lòng thử lại.",
         "passThrough": "Click xuyên",
         "windowSize": "Kích thước",
         "opacity": "Độ mờ",

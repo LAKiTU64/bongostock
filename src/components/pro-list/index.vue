@@ -1,29 +1,14 @@
 <script setup lang="ts">
-import { Flex } from 'antdv-next'
-
-const { title } = defineProps<{
-  title: string
-}>()
+defineProps<{ title: string }>()
 </script>
 
 <template>
-  <Flex
-    class="not-last:mb-4"
-    gap="small"
-    vertical
-  >
-    <div
-      class="text-4 font-medium"
-      data-tauri-drag-region
-    >
+  <section class="settings-section">
+    <h2 class="settings-section-title">
       {{ title }}
-    </div>
-
-    <Flex
-      gap="middle"
-      vertical
-    >
+    </h2>
+    <div class="settings-group">
       <slot />
-    </Flex>
-  </FLex>
+    </div>
+  </section>
 </template>

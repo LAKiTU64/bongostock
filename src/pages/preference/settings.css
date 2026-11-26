@@ -1,0 +1,245 @@
+:root {
+  --settings-canvas: #f5efe7;
+  --settings-surface: #fffaf3;
+  --settings-subtle: #f6efe6;
+  --settings-ink: #443d3e;
+  --settings-muted: #73675f;
+  --settings-line: #ddd6cf;
+  --settings-accent: #755946;
+  --settings-accent-hover: #594435;
+  --settings-accent-ink: #fff;
+  --settings-selected: #eedfcf;
+  --settings-danger: #ac3737;
+  --settings-danger-bg: #fbecec;
+}
+
+:root.dark {
+  --settings-canvas: #211e1c;
+  --settings-surface: #2b2623;
+  --settings-subtle: #352f2a;
+  --settings-ink: #f8efe4;
+  --settings-muted: #c6b8aa;
+  --settings-line: #51483f;
+  --settings-accent: #e5c3a4;
+  --settings-accent-hover: #f2d5ba;
+  --settings-accent-ink: #35271f;
+  --settings-selected: #493b31;
+  --settings-danger: #f4a7a3;
+  --settings-danger-bg: #442a29;
+}
+
+.preferences {
+  display: grid;
+  grid-template-columns: 155px minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+  color: var(--settings-ink);
+  background: var(--settings-canvas);
+  font: 14px/1.45 var(--font-ui);
+}
+
+.preferences-sidebar {
+  min-height: 0;
+  padding: 0 12px;
+  border-right: 1px solid var(--settings-line);
+  background: var(--settings-surface);
+}
+
+.preferences-mac .preferences-sidebar {
+  padding-top: 28px;
+}
+
+.preferences-brand {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 18px 5px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.preferences-brand img {
+  box-sizing: border-box;
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--settings-line);
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.preferences nav {
+  display: grid;
+  gap: 3px;
+  padding-top: 6px;
+}
+
+.preferences nav button {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  min-height: 39px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--settings-muted);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.preferences nav button:hover {
+  background: var(--settings-subtle);
+}
+.preferences nav button[aria-current] {
+  color: var(--settings-accent);
+  background: var(--settings-selected);
+  font-weight: 650;
+}
+.preferences nav i {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.preferences-pane {
+  min-width: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+/* Share the thumb and track appearance across the page, watchlist and popup. */
+:is(.preferences-pane, .preferences-pane *, .select-menu)::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+:is(.preferences-pane, .preferences-pane *, .select-menu)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:is(.preferences-pane, .preferences-pane *, .select-menu)::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--settings-muted) 50%, var(--settings-surface)) padding-box;
+}
+
+:is(.preferences-pane, .preferences-pane *, .select-menu)::-webkit-scrollbar-thumb:hover {
+  background-color: var(--settings-muted);
+}
+
+.preferences-content {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+  padding: 0 clamp(18px, 3vw, 36px) 28px;
+}
+.preferences-content > header {
+  padding: 28px 0 20px;
+}
+.preferences-mac .preferences-content > header {
+  padding-top: 37px;
+}
+.preferences-content h1 {
+  margin: 0;
+  color: var(--settings-ink);
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.settings-section + .settings-section {
+  margin-top: 20px;
+}
+.settings-section-title {
+  margin: 0 0 7px;
+  color: var(--settings-ink);
+  font-weight: 650;
+  font-size: 14px;
+}
+.settings-group {
+  overflow: clip;
+  border: 1px solid var(--settings-line);
+  border-radius: 12px;
+  background: var(--settings-surface);
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 45px;
+  padding: 9px 15px;
+}
+.settings-row + .settings-row {
+  border-top: 1px solid var(--settings-line);
+}
+.settings-row-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+.settings-row-label {
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.settings-row-detail {
+  margin-top: 3px;
+  color: var(--settings-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.settings-row .ant-select {
+  min-width: 108px;
+}
+
+.settings-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--settings-line);
+  border-radius: 7px;
+  color: var(--settings-ink);
+  background: var(--settings-surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-button:not(:disabled):hover {
+  background: var(--settings-subtle);
+}
+.settings-button.is-primary {
+  color: var(--settings-accent-ink);
+  border-color: var(--settings-accent);
+  background: var(--settings-accent);
+}
+.settings-button.is-primary:not(:disabled):hover {
+  background: var(--settings-accent-hover);
+}
+.settings-button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.settings-button i {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.settings-input {
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid var(--settings-line);
+  border-radius: 7px;
+  background: var(--settings-surface);
+  color: var(--settings-ink);
+  font: inherit;
+}
+.preferences :is(button, a, input, summary, select):focus-visible {
+  outline: 2px solid var(--settings-accent) !important;
+  outline-offset: 2px;
+}

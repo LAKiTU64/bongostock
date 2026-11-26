@@ -135,14 +135,16 @@
           "togglePreferences": "開啟偏好設定",
           "mirrorMode": "鏡像模式",
           "passThrough": "視窗穿透",
-          "alwaysOnTop": "視窗置頂"
+          "alwaysOnTop": "視窗置頂",
+          "bossKey": "老闆鍵"
         },
         "hints": {
           "toggleCat": "切換貓咪視窗的顯示與隱藏。",
           "togglePreferences": "切換偏好設定視窗的顯示與隱藏。",
           "mirrorMode": "切換貓咪的鏡像模式。",
           "passThrough": "切換貓咪視窗是否可穿透。",
-          "alwaysOnTop": "切換貓咪視窗是否置頂。"
+          "alwaysOnTop": "切換貓咪視窗是否置頂。",
+          "bossKey": "立即關閉浮窗並停止影片播放"
         }
       },
       "about": {
@@ -152,7 +154,10 @@
           "appLog": "軟體日誌",
           "appInfo": "軟體資訊",
           "openSource": "開源網址",
-          "acknowledgements": "鳴謝"
+          "acknowledgements": "鳴謝",
+          "licenses": "開放原始碼聲明",
+          "thirdParty": "第三方聲明",
+          "source": "專案原始碼"
         },
         "hints": {
           "appInfo": "複製軟體資訊並提供給 Bug Issue。",
@@ -160,10 +165,18 @@
         },
         "buttons": {
           "checkUpdate": "檢查更新",
-          "copy": "複製",
+          "copy": "複製診斷資訊",
           "feedbackIssues": "回饋問題",
           "viewLog": "查看日誌"
         }
+      },
+      "navigation": {
+        "general": "一般",
+        "connection": "連線",
+        "style": "樣式",
+        "market": "行情",
+        "video": "影片",
+        "about": "關於"
       }
     }
   },
@@ -198,7 +211,7 @@
         "hideCat": "隱藏貓咪",
         "showCat": "顯示貓咪",
         "recoverWindows": "找回桌寵與浮動視窗",
-        "recoveryFailed": "視窗恢復失敗，請重試或重新連接顯示器。",
+        "recoveryFailed": "無法找回視窗，請再試一次。",
         "passThrough": "視窗穿透",
         "windowSize": "視窗尺寸",
         "opacity": "不透明度",

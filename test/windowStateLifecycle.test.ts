@@ -9,10 +9,56 @@ import { createApp, nextTick } from 'vue'
 import { useAppStore } from '../src/stores/app'
 import { compactPetLayout } from '../src/utils/petLayout'
 import { restorePosition } from '../src/utils/windowGeometry'
-import { createWindowStateRecorder } from '../src/utils/windowStateLifecycle'
+import { createWindowStateRecorder, hasMixedWindowUnits, hydrateAppState, stateForWindowPosition } from '../src/utils/windowStateLifecycle'
 
 const screen = { id: 'main', scale: 2, bounds: { x: 0, y: 0, width: 1440, height: 900 }, work: { x: 0, y: 25, width: 1440, height: 875 } }
 const saved = { x: 1300, y: 790, width: 93, height: 69, version: 2 as const, space: 'macos-logical' as const }
+
+test('mixed nested macOS records preserve a corroborated location without doubling native preference or pet dimensions', () => {
+  const meta = { type: 'Physical', version: 2, space: 'macos-logical', scale: 2 }
+  const disk = { windowState: {
+    'preference': { ...meta, x: 620, y: 488, width: 1600, height: 1200 },
+    'main': { ...meta, x: 2702, y: 1562, width: 220, height: 150 },
+    'stock-panel': { ...meta, x: 2432, y: 1100, width: 296, height: 225 },
+  } }
+  const { windowState } = hydrateAppState(disk)
+  const retina = { id: 'Retina', scale: 2, bounds: { x: 0, y: 0, width: 1512, height: 982 }, work: { x: 56, y: 38, width: 1456, height: 944 } }
+  const second = { id: 'right', scale: 1, bounds: { x: 1512, y: 0, width: 1920, height: 1440 }, work: { x: 1512, y: 26, width: 1920, height: 1414 } }
+  const screens = [second, retina]
+  const settingsSize = { width: 800, height: 600 }
+  const petSize = { width: 110, height: 75 }
+  assert.ok(hasMixedWindowUnits(windowState.preference))
+  assert.deepEqual(restorePosition(stateForWindowPosition(windowState.preference, settingsSize), 'macos-logical', settingsSize, screens, retina.id), { ...settingsSize, x: 310, y: 244 })
+  assert.deepEqual(restorePosition(stateForWindowPosition(windowState.main, petSize), 'macos-logical', petSize, screens, retina.id), { ...petSize, x: 1351, y: 781 })
+  // A legacy move can overwrite the coordinates without overwriting the logical
+  // size. The 1× secondary would otherwise wrongly corroborate those coordinates.
+  assert.equal(stateForWindowPosition(windowState['stock-panel'], { width: 296, height: 225 }), undefined)
+  assert.equal(disk.windowState.preference.width, 1600)
+})
+
+test('migration leaves clean legacy and authoritative rectangles alone and supports negative-origin source displays', () => {
+  const meta = { type: 'Physical', version: 2, space: 'macos-logical', scale: 2 }
+  const raw = { ...meta, x: -2100, y: 160, width: 1600, height: 1200 }
+  const native = { width: 800, height: 600 }
+  const retina = { id: 'left', scale: 2, bounds: { x: -1600, y: 0, width: 1600, height: 1080 }, work: { x: -1600, y: 30, width: 1600, height: 1050 } }
+  const primary = { ...screen, scale: 1 }
+  const { windowState } = hydrateAppState({ windowState: { preference: raw } })
+  assert.deepEqual(restorePosition(stateForWindowPosition(windowState.preference, native), 'macos-logical', native, [primary, retina], primary.id), { ...native, x: -1050, y: 80 })
+  assert.deepEqual(restorePosition(stateForWindowPosition(windowState.preference, native), 'macos-logical', native, [primary], primary.id), restorePosition(undefined, 'macos-logical', native, [primary], primary.id))
+
+  for (const clean of [
+    { ...native, x: 379, y: 200, version: 2 as const, space: 'macos-logical' as const, scale: 2 },
+    { ...raw, space: 'physical' },
+    { type: 'Physical', width: 1600, height: 1200, x: 620, y: 488 },
+  ]) {
+    assert.equal(hydrateAppState({ windowState: { preference: clean } }).windowState.preference, clean)
+    assert.equal(hydrateAppState({ 'windowState': { preference: raw }, 'window:preference': clean }).windowState.preference, clean)
+  }
+  assert.equal(hydrateAppState({ 'windowState': { preference: raw }, 'window:preference': raw }).windowState.preference, raw)
+  for (const invalid of [{ ...raw, scale: 0 }, { ...raw, height: undefined }, { ...raw, x: null }]) {
+    assert.equal(hydrateAppState({ windowState: { preference: invalid } }).windowState.preference, undefined)
+  }
+})
 
 test('restore sizes the pet before resolving an edge position and ignores startup resize events', async () => {
   const captures: unknown[] = []
@@ -158,7 +204,11 @@ test('disposal during native sizing, positioning or a pending notification never
 
 test('real Pinia plugin loads legacy rectangles and keeps concurrent window patches independent through immediate disk flush', async () => {
   Object.assign(globalThis, { window: { crypto: globalThis.crypto } })
-  const data: Record<string, unknown> = { windowState: { main: saved, preference: { x: 42, y: 80 } } }
+  const data: Record<string, unknown> = { windowState: {
+    'main': saved,
+    'preference': { x: 42, y: 80 },
+    'stock-panel': { type: 'Physical', version: 2, space: 'macos-logical', scale: 2, x: 1400, y: 400, width: 592, height: 450 },
+  } }
   let disk: Record<string, any> = {}
   const keys: string[][] = []
   mockWindows('main')
@@ -183,6 +233,7 @@ test('real Pinia plugin loads legacy rectangles and keeps concurrent window patc
     const panel = createStore()
     await Promise.all([pet.$tauri.start(), panel.$tauri.start()])
     assert.deepEqual(pet.windowState.main, saved)
+    assert.equal(hasMixedWindowUnits(panel.windowState['stock-panel']), true)
     const petRect = { ...saved, x: 1250 }
     const panelRect = { ...saved, x: 844, width: 296, height: 225 }
     await Promise.all([pet.saveWindowState('main', petRect), panel.saveWindowState('stock-panel', panelRect)])
@@ -195,6 +246,7 @@ test('real Pinia plugin loads legacy rectangles and keeps concurrent window patc
     await relaunched.$tauri.start()
     assert.deepEqual(relaunched.windowState.main, petRect)
     assert.deepEqual(relaunched.windowState['stock-panel'], panelRect)
+    assert.equal(hasMixedWindowUnits(relaunched.windowState['stock-panel']), false)
     assert.deepEqual(relaunched.windowState.preference, { x: 42, y: 80 })
   } finally {
     clearMocks()

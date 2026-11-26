@@ -1,6 +1,29 @@
-import type { SavedWindow } from './windowGeometry'
+import type { SavedWindow, Size } from './windowGeometry'
 
-export type WindowState = Record<string, SavedWindow | undefined>
+import { validNumber, validPoint, validSize } from './windowGeometry'
+
+interface HydratedWindow extends SavedWindow {
+  // Only set when reading an old nested record written by conflicting coordinate formats.
+  legacyPhysicalScale?: number
+}
+
+export type WindowState = Record<string, HydratedWindow | undefined>
+
+export function hasMixedWindowUnits(state: HydratedWindow | undefined): state is HydratedWindow & { legacyPhysicalScale: number } {
+  return state?.version === undefined && state?.legacyPhysicalScale !== undefined
+}
+
+export function stateForWindowPosition(state: HydratedWindow | undefined, current: Size) {
+  if (!hasMixedWindowUnits(state)) return state
+  const scale = state.legacyPhysicalScale
+  // Old native move and resize events updated separate fields. A current size
+  // match substantiates the scale before restorePosition tests the source screen.
+  if (!validSize(state) || Math.abs(state.width - current.width * scale) > 1
+    || Math.abs(state.height - current.height * scale) > 1) {
+    return undefined
+  }
+  return state
+}
 
 const prefix = 'window:'
 
@@ -12,6 +35,14 @@ export function windowPositionPatch(label: string, state: SavedWindow) {
 export function hydrateAppState(source: Record<string, unknown>) {
   const { name, version } = source
   const windowState: WindowState = { ...source.windowState as WindowState | undefined }
+  for (const [label, state] of Object.entries(windowState)) {
+    if (state?.version !== 2 || state.space !== 'macos-logical' || !('type' in state) || state.type !== 'Physical') continue
+    // Pinia deep merges could leave the old native event type alongside the
+    // v2 marker. Neither marker alone establishes the units of every field.
+    windowState[label] = validPoint(state) && validSize(state) && validNumber(state.scale) && state.scale > 0
+      ? { x: state.x, y: state.y, width: state.width, height: state.height, legacyPhysicalScale: state.scale }
+      : undefined
+  }
   for (const [key, value] of Object.entries(source)) {
     if (key.startsWith(prefix) && value && typeof value === 'object') windowState[key.slice(prefix.length)] = value as SavedWindow
   }

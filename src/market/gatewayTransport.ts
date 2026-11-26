@@ -52,7 +52,7 @@ export function decodeGatewayResponse<T>(result: GatewayResponse): T {
     throw new GatewayError(`网关返回的不是有效 JSON（HTTP ${result.status}）`, result.status)
   }
   if (result.status < 200 || result.status >= 300) {
-    if (result.status === 401) throw new GatewayError('网关令牌无效，请在设置中检查 Bearer Token。', 401)
+    if (result.status === 401) throw new GatewayError('网关 Token 无效，请在设置中检查 Bearer Token。', 401)
     const error = (payload as { error?: unknown } | null)?.error
     throw new GatewayError(typeof error === 'string' ? error : `网关返回 HTTP ${result.status}`, result.status)
   }

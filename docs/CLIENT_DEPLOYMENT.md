@@ -185,13 +185,13 @@ pnpm tauri build --target universal-apple-darwin --bundles app,dmg
 
 ## 6. 连接 BongoStock Gateway
 
-打开“偏好设置 → 行情”并填写：
+打开“偏好设置 → 连接”并填写：
 
 - 服务地址：`https://<服务器域名或公网 IP>`；
 - Bearer Token：服务端 `/etc/bongostock-gateway.env` 中的 `BONGOSTOCK_TOKEN`；
 - 超时：默认 8,000 ms。
 
-点击“测试连接”。成功后只请求 `/v1/capabilities`，不会携带证券代码。Token 会明文保存在当前用户的应用数据中并在重启后恢复，请勿上传或分享这些文件。
+点击“测试连接”。成功后只请求 `/v1/capabilities`，不会携带证券代码。正式构建将 Token 保存在系统凭据库。开发模式将 Token 保存在当前用户的应用数据中，请勿上传或分享配置文件。
 
 报价、搜索、走势和 K 线全部使用 Gateway（BongoStock API v1），客户端不内置任何行情源。资讯中心独立配置，只要 Gateway 提供 `/v1/news/search` 且服务端已配置资讯能力，资讯通过同一地址和 Token 请求。
 

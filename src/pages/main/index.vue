@@ -6,13 +6,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import CompactCat from '@/components/CompactCat.vue'
 import { useAppMenu } from '@/composables/useAppMenu'
+import { useAppShortcuts } from '@/composables/useAppShortcuts'
 import { useDevice } from '@/composables/useDevice'
 import { closeStockPanel, toggleStockPanel } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { useTray } from '@/composables/useTray'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { hideWindow, setAlwaysOnTop, setTaskbarVisibility, showWindow } from '@/plugins/window'
-import { installWindowRecovery, recoveringWindows, reportWindowRecoveryError } from '@/plugins/windowRecovery'
+import { installWindowRecovery, logWindowError, recoveringWindows } from '@/plugins/windowRecovery'
 import { useCatStore } from '@/stores/cat'
 import { useGeneralStore } from '@/stores/general.ts'
 import { useSkinStore } from '@/stores/skin'
@@ -25,6 +26,7 @@ const appWindow = getCurrentWebviewWindow()
 const catStore = useCatStore()
 const { getBaseMenu, getExitMenu } = useAppMenu()
 useTray()
+useAppShortcuts()
 const generalStore = useGeneralStore()
 const skinStore = useSkinStore()
 const leftPulse = ref(false)
@@ -175,7 +177,7 @@ async function setCompactWindowSize() {
       height: layout.value.windowHeight,
     }))
     if (!disposed && (forceSafePosition || catStore.window.keepInScreen)) await ensureWindowOnScreen(appWindow)
-  }).catch(reportWindowRecoveryError)
+  }).catch(error => logWindowError('size pet window', error))
 }
 
 function scheduleCloseStockPanelIfUnfocused() {

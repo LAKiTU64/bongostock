@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { flushWindowStateBeforeExit } from '@/composables/useWindowState'
 import { WINDOW_LABEL } from '@/constants'
 import { showWindow } from '@/plugins/window'
-import { reportWindowRecoveryError, requestWindowRecovery } from '@/plugins/windowRecovery'
+import { logWindowError, requestWindowRecovery } from '@/plugins/windowRecovery'
 import { useCatStore } from '@/stores/cat'
 import { isMac } from '@/utils/platform'
 
@@ -75,7 +75,7 @@ export function useAppMenu() {
       MenuItem.new({
         text: t('composables.useAppMenu.labels.restartApp'),
         action: async () => {
-          await flushWindowStateBeforeExit().catch(reportWindowRecoveryError)
+          await flushWindowStateBeforeExit().catch(error => logWindowError('save window state before restart', error))
           await relaunch()
         },
       }),
@@ -83,7 +83,7 @@ export function useAppMenu() {
         text: t('composables.useAppMenu.labels.quitApp'),
         accelerator: isMac ? 'Cmd+Q' : '',
         action: async () => {
-          await flushWindowStateBeforeExit().catch(reportWindowRecoveryError)
+          await flushWindowStateBeforeExit().catch(error => logWindowError('save window state before quit', error))
           await exit(0)
         },
       }),
