@@ -45,6 +45,14 @@ gilrs = { git = "https://github.com/ayangweb/gilrs", default-features = false, f
 
 [target."cfg(target_os = \"macos\")".dependencies]
 tauri-nspanel.workspace = true
+keyring = { version = "3", features = ["apple-native"] }
+
+# token 只存本机系统凭据库，按平台各接各的后端：macOS 钥匙串 / Windows 凭据管理器 / Linux Secret Service。
+[target."cfg(target_os = \"windows\")".dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target."cfg(target_os = \"linux\")".dependencies]
+keyring = { version = "3", features = ["sync-secret-service"] }
 
 [features]
 cargo-clippy = []

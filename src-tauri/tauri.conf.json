@@ -55,7 +55,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval' https://smartbox.gtimg.cn https://searchapi.eastmoney.com; connect-src 'self' asset: ipc: http://asset.localhost https://*.gtimg.cn https://*.eastmoney.com https://*.sina.cn; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; font-src 'self' data:;",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval' https://smartbox.gtimg.cn https://searchapi.eastmoney.com; connect-src 'self' asset: ipc: http://asset.localhost https://*.gtimg.cn https://*.eastmoney.com https://*.sina.cn; img-src 'self' asset: http://asset.localhost data: http://127.0.0.1:* https:; media-src 'self' asset: http://asset.localhost http://127.0.0.1:* https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;",
       "dangerousDisableAssetCspModification": false,
       "assetProtocol": {
         "enable": true,

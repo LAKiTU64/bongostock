@@ -8,9 +8,11 @@ use core::{
 };
 use tauri::{Manager, WindowEvent, generate_handler};
 use tauri_plugin_autostart::MacosLauncher;
-use tauri_plugin_custom_window::{MAIN_WINDOW_LABEL, show_preference_window};
+use tauri_plugin_custom_window::{MAIN_WINDOW_LABEL, request_main_recovery};
+use utils::audio_output::{get_audio_output_state, init_audio_output, shutdown_audio_output};
 use utils::fs_extra::copy_dir;
 use utils::market::market_request;
+use utils::secret::{clear_gateway_token, load_gateway_token, save_gateway_token};
 use utils::skin::{delete_imported_skin, import_skin_pack, list_imported_skins};
 
 #[tauri::command]
@@ -31,6 +33,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .setup(|app| {
             let app_handle = app.handle();
+            init_audio_output(app_handle);
 
             let main_window = app.get_webview_window(MAIN_WINDOW_LABEL).unwrap();
 
@@ -39,6 +42,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(generate_handler![
+            get_audio_output_state,
             copy_dir,
             market_request,
             import_skin_pack,
@@ -49,7 +53,10 @@ pub fn run() {
             set_mouse_move_enabled,
             start_gamepad_listing,
             stop_gamepad_listing,
-            open_macos_accessibility_settings
+            open_macos_accessibility_settings,
+            save_gateway_token,
+            load_gateway_token,
+            clear_gateway_token
         ])
         .plugin(tauri_plugin_admin_status::init())
         .plugin(tauri_plugin_custom_window::init())
@@ -60,7 +67,9 @@ pub fn run() {
         .plugin(prevent_default::init())
         .plugin(tauri_plugin_single_instance::init(
             |app_handle, _argv, _cwd| {
-                show_preference_window(app_handle);
+                if let Err(error) = request_main_recovery(app_handle) {
+                    tauri_plugin_log::log::error!("window recovery request failed: {error}");
+                }
             },
         ))
         .plugin(
@@ -91,9 +100,12 @@ pub fn run() {
         .expect("error while running tauri application");
 
     app.run(|app_handle, event| match event {
+        tauri::RunEvent::Exit => shutdown_audio_output(),
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => {
-            show_preference_window(app_handle);
+            if let Err(error) = request_main_recovery(app_handle) {
+                tauri_plugin_log::log::error!("window recovery request failed: {error}");
+            }
         }
         _ => {
             let _ = app_handle;

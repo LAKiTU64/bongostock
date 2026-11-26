@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 
 import App from './App.vue'
 import { i18n } from './locales/i18n'
+import { syncGatewayToken } from './market/gatewayToken'
 import router from './router'
 
 import 'virtual:uno.css'
@@ -17,4 +18,14 @@ pinia.use(createPlugin({
   saveStrategy: 'debounce',
 }))
 
-createApp(App).use(router).use(pinia).use(i18n).mount('#app')
+async function bootstrap() {
+  const app = createApp(App).use(router).use(pinia).use(i18n)
+
+  // Token 存在系统凭据库，必须在任何组件发请求之前读进内存，
+  // 否则启动阶段的自选同步会拿着空 token 打到云端。
+  await syncGatewayToken(pinia)
+
+  app.mount('#app')
+}
+
+void bootstrap()

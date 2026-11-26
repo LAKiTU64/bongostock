@@ -15,9 +15,12 @@ import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
 import { hideWindow, showWindow } from '@/plugins/window'
+import { installPanelRecovery, recoveringPanel, reportWindowRecoveryError } from '@/plugins/windowRecovery'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
+import { ensureWindowOnScreen, windowPositionQueue } from '@/utils/windowPlacement'
 
+import FunPanel from './FunPanel.vue'
 import NewsPanel from './NewsPanel.vue'
 
 const appWindow = getCurrentWebviewWindow()
@@ -28,7 +31,14 @@ const loading = ref(false)
 const errorMessage = ref('')
 const activeGroupId = ref('')
 const isDimmed = ref(false)
-const isPinned = ref(false)
+const pinMode = ref<PinMode>('normal')
+const isPinned = computed(() => pinMode.value !== 'normal')
+const isOpaque = computed(() => pinMode.value === 'pinned-opaque')
+const pinButtonLabel = computed(() => {
+  if (pinMode.value === 'normal') return '当前：普通；点击切换为置顶（无操作时淡出）'
+  if (pinMode.value === 'pinned') return '当前：置顶（无操作时淡出）；点击切换为置顶且不透明'
+  return '当前：置顶且不透明；点击切换为普通'
+})
 const selectedQuote = ref<StockQuote>()
 const detailMode = ref<DetailMode>('intraday')
 const detailLoading = ref(false)
@@ -39,7 +49,9 @@ const chartHover = ref<ChartHoverState>()
 const intradayError = ref('')
 const trendError = ref('')
 const klineError = ref('')
-const panelMode = ref<'market' | 'news'>('market')
+const panelMode = ref<'market' | 'news' | 'fun'>('market')
+/** 摸鱼面板对外只暴露一个 refresh，工具栏的刷新键复用它。 */
+const funPanelRef = ref<{ refresh: () => void, pause: () => void } | null>(null)
 const newsLoading = ref(false)
 const initialNewsSecurityCode = ref('')
 const newsRefreshToken = ref(0)
@@ -59,6 +71,8 @@ let groupTabsDrag: {
 } | undefined
 let suppressGroupTabClick = false
 let unlistenFocus: (() => void) | undefined
+let unlistenClose: (() => void) | undefined
+let unlistenRecovery: (() => void) | undefined
 let retainedStateUntil = 0
 let panelLifecycle: 'active' | 'reclaimed' | 'retained' = 'reclaimed'
 let closeInProgress = false
@@ -83,6 +97,7 @@ const REFRESH_JITTER_RATIO = 0.1
 // 收盘后多留一分钟，等最后一笔快照落地。
 const SESSION_TAIL_MINUTES = 1
 
+type PinMode = 'normal' | 'pinned' | 'pinned-opaque'
 type DetailMode = 'intraday' | 'five-day' | 'day-k'
 interface ChartHoverState {
   left: number
@@ -168,28 +183,29 @@ watch(() => [
   watchlistStore.panel.dimmedOpacity,
 ], resetIdleFade)
 
-useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, async ({ payload }) => {
-  if (payload !== WINDOW_LABEL.STOCK_PANEL) return
+useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
+  if (payload !== WINDOW_LABEL.STOCK_PANEL || recoveringPanel.value) return
 
-  const restoreState = panelLifecycle === 'retained'
-    && watchlistStore.panel.stateRetentionSeconds > 0
-    && Date.now() <= retainedStateUntil
-  panelLifecycle = 'active'
-  retainedStateUntil = 0
-  closeInProgress = false
-  let targetPosition: { x: number, y: number } | undefined
-  if (!restoreState) {
-    await setPanelMode('market')
-    closeDetail()
-    targetPosition = await positionStockPanelNearPet()
-  } else {
-    await resizePanel()
-  }
-  setPinned(false)
-  resetIdleFade()
-  await showWindow(undefined, targetPosition)
-  void refreshQuotes()
-  startAutoRefresh()
+  void windowPositionQueue(async () => {
+    if (recoveringPanel.value) return
+    const restoreState = panelLifecycle === 'retained'
+      && watchlistStore.panel.stateRetentionSeconds > 0
+      && Date.now() <= retainedStateUntil
+    panelLifecycle = 'active'
+    retainedStateUntil = 0
+    closeInProgress = false
+    if (!restoreState) {
+      await setPanelMode('market')
+      closeDetail()
+      await positionStockPanelNearPet()
+    } else {
+      await resizePanel()
+    }
+    setPinMode('normal')
+    await showWindow()
+    void refreshQuotes()
+    startAutoRefresh()
+  }).catch(reportWindowRecoveryError)
 })
 
 useTauriListen<StockPanelCloseReason>(LISTEN_KEY.CLOSE_STOCK_PANEL, ({ payload }) => {
@@ -230,10 +246,11 @@ useEventListener('keydown', (event) => {
 onMounted(async () => {
   // A newly created hidden panel cannot receive the initial show event until
   // Vue has mounted its listeners. Signal readiness from the webview itself.
+  unlistenRecovery = await installPanelRecovery()
   await showWindow(WINDOW_LABEL.STOCK_PANEL)
   resetIdleFade()
   unlistenFocus = await appWindow.onFocusChanged(async ({ payload: focused }) => {
-    if (focused || isPinned.value || closeInProgress || !await appWindow.isVisible()) return
+    if (focused || recoveringPanel.value || isPinned.value || closeInProgress || !await appWindow.isVisible()) return
 
     const mainWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
     const [mainFocused, panelFocused] = await Promise.all([
@@ -242,6 +259,10 @@ onMounted(async () => {
     ])
 
     if (!mainFocused && !panelFocused && !isPinned.value) void closePanel(true)
+  })
+
+  unlistenClose = await appWindow.onCloseRequested(() => {
+    void closePanel(false)
   })
 
   if (await appWindow.isVisible()) {
@@ -255,6 +276,8 @@ onUnmounted(() => {
   stopAutoRefresh()
   detailAbortController?.abort()
   unlistenFocus?.()
+  unlistenClose?.()
+  unlistenRecovery?.()
 })
 
 // 列表页与详情页节奏不同，切换后立即按新节奏重排下一次刷新。
@@ -265,6 +288,9 @@ watch([selectedQuote, panelMode], () => {
 function resetIdleFade() {
   isDimmed.value = false
   clearTimeout(idleFadeTimer)
+  idleFadeTimer = undefined
+  if (isOpaque.value || closeInProgress || panelLifecycle !== 'active') return
+
   idleFadeTimer = setTimeout(() => {
     isDimmed.value = true
   }, watchlistStore.panel.fadeDelaySeconds * 1000)
@@ -526,11 +552,10 @@ function handleGroupTabsClick(event: MouseEvent) {
 }
 
 function togglePinned() {
-  setPinned(!isPinned.value)
-  resetIdleFade()
+  setPinMode(pinMode.value === 'normal' ? 'pinned' : pinMode.value === 'pinned' ? 'pinned-opaque' : 'normal')
 }
 
-async function setPanelMode(mode: 'market' | 'news') {
+async function setPanelMode(mode: 'market' | 'news' | 'fun') {
   if (mode === 'news' && selectedQuote.value) initialNewsSecurityCode.value = selectedQuote.value.code
   if (mode === 'news') closeDetail()
   panelMode.value = mode
@@ -541,9 +566,14 @@ async function setPanelMode(mode: 'market' | 'news') {
 async function resizePanel() {
   await nextTick()
   await appWindow.setSize(new LogicalSize(STOCK_PANEL_WIDTH, STOCK_PANEL_HEIGHT))
+  await ensureWindowOnScreen(appWindow)
 }
 
 function handleRefresh() {
+  if (panelMode.value === 'fun') {
+    funPanelRef.value?.refresh()
+    return
+  }
   if (panelMode.value === 'news') {
     newsRefreshToken.value += 1
     return
@@ -556,16 +586,24 @@ function handleRefresh() {
   void refreshQuotes()
 }
 
-async function closePanel(retainState: boolean) {
-  if (closeInProgress) return
+function closePanel(retainState: boolean) {
+  if (recoveringPanel.value) return Promise.resolve()
+  return windowPositionQueue(() => performClosePanel(retainState)).catch(reportWindowRecoveryError)
+}
+
+async function performClosePanel(retainState: boolean) {
+  if (closeInProgress || recoveringPanel.value) return
 
   closeInProgress = true
+  clearTimeout(idleFadeTimer)
+  idleFadeTimer = undefined
+  funPanelRef.value?.pause()
   stopAutoRefresh()
   const retentionSeconds = watchlistStore.panel.stateRetentionSeconds
   const shouldRetain = retainState && retentionSeconds > 0
 
   if (!shouldRetain) closeDetail()
-  setPinned(false)
+  setPinMode('normal')
 
   try {
     await hideWindow()
@@ -581,9 +619,10 @@ async function closePanel(retainState: boolean) {
   }
 }
 
-function setPinned(value: boolean) {
-  isPinned.value = value
-  void emit(LISTEN_KEY.STOCK_PANEL_PIN_CHANGED, value)
+function setPinMode(value: PinMode) {
+  pinMode.value = value
+  resetIdleFade()
+  void emit(LISTEN_KEY.STOCK_PANEL_PIN_CHANGED, isPinned.value)
 }
 
 function closeDetail() {
@@ -928,7 +967,7 @@ function buildKlineChart(klines: StockKline[]) {
 <template>
   <main
     class="stock-panel"
-    :class="{ 'is-dimmed': isDimmed }"
+    :class="{ 'is-dimmed': isDimmed, 'is-opaque': isOpaque }"
     :style="{
       '--dimmed-background-opacity': watchlistStore.panel.dimmedOpacity * 0.97 / 100,
       '--dimmed-opacity': watchlistStore.panel.dimmedOpacity / 100,
@@ -964,10 +1003,20 @@ function buildKlineChart(klines: StockKline[]) {
         资讯
       </button>
       <button
+        :class="{ active: panelMode === 'fun' }"
+        title="刷 B站视频"
+        type="button"
+        @click.stop="setPanelMode('fun')"
+        @pointerdown.stop
+      >
+        刷视频
+      </button>
+      <button
+        :aria-label="pinButtonLabel"
         :aria-pressed="isPinned"
         class="pin-button"
         :class="{ active: isPinned }"
-        title="常驻浮窗"
+        :title="pinButtonLabel"
         type="button"
         @click.stop="togglePinned"
         @pointerdown.stop
@@ -977,13 +1026,21 @@ function buildKlineChart(klines: StockKline[]) {
           viewBox="0 0 24 24"
         >
           <path d="M9 3h6l-1 6 3 3v2h-4v7l-1 1-1-1v-7H7v-2l3-3-1-6Z" />
+          <rect
+            v-if="isOpaque"
+            height="6"
+            rx="1"
+            width="6"
+            x="18"
+            y="17"
+          />
         </svg>
       </button>
       <button
-        :aria-label="panelMode === 'news' ? '刷新资讯' : '刷新行情'"
+        :aria-label="panelMode === 'news' ? '刷新资讯' : panelMode === 'fun' ? '换一批' : '刷新行情'"
         class="refresh-button"
         :disabled="loading || detailLoading || newsLoading"
-        :title="panelMode === 'news' ? '刷新资讯' : selectedQuote ? '刷新该股票详细行情' : '刷新行情'"
+        :title="panelMode === 'news' ? '刷新资讯' : panelMode === 'fun' ? '换一批' : selectedQuote ? '刷新该股票详细行情' : '刷新行情'"
         type="button"
         @click.stop="handleRefresh"
         @pointerdown.stop
@@ -1084,6 +1141,13 @@ function buildKlineChart(klines: StockKline[]) {
         @group-change="selectGroup"
         @loading="newsLoading = $event"
       />
+    </section>
+
+    <section
+      v-else-if="panelMode === 'fun'"
+      class="fun-view"
+    >
+      <FunPanel ref="funPanelRef" />
     </section>
 
     <section
@@ -1396,13 +1460,25 @@ function buildKlineChart(klines: StockKline[]) {
   opacity: var(--dimmed-opacity);
 }
 
+.stock-panel.is-opaque {
+  background: #fffaf3;
+  transition: none;
+}
+
+.stock-panel.is-opaque > * {
+  opacity: 1;
+  transition: none;
+}
+
 .mode-tabs {
   display: grid;
   box-sizing: border-box;
   height: 26px;
   min-height: 26px;
   flex: none;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) 24px 24px 16px;
+  /* 三个模式 tab 等分剩余宽度，后面三个固定列依次是：常驻、刷新、拖拽手柄。
+     列数必须和子元素数量一致，否则末尾的手柄会被挤到第二行，而容器只有 26px 高，直接看不见。 */
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 24px 24px 16px;
   gap: var(--tab-gap);
   padding-top: 1px;
   padding-bottom: 3px;
@@ -1414,6 +1490,7 @@ function buildKlineChart(klines: StockKline[]) {
 }
 
 .mode-tabs button {
+  overflow: hidden;
   padding: 2px 5px;
   border: 0;
   border-radius: 7px;
@@ -1422,6 +1499,8 @@ function buildKlineChart(klines: StockKline[]) {
   cursor: pointer;
   font: inherit;
   font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mode-tabs button.active {
@@ -1451,6 +1530,13 @@ function buildKlineChart(klines: StockKline[]) {
 }
 
 .news-view {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.fun-view {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -1801,7 +1887,7 @@ function buildKlineChart(klines: StockKline[]) {
   display: none;
 }
 
-.group-tab {
+:deep(.group-tab) {
   box-sizing: border-box;
   height: 19px;
   flex: none;
@@ -1817,7 +1903,7 @@ function buildKlineChart(klines: StockKline[]) {
   white-space: nowrap;
 }
 
-.group-tab.active {
+:deep(.group-tab.active) {
   background: #443d3e;
   color: #fffaf3;
   font-weight: 650;

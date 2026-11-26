@@ -5,7 +5,6 @@ import { ConfigProvider, Flex, theme } from 'antdv-next'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { useTray } from '@/composables/useTray'
 import { getAntdLocale } from '@/locales/antd'
 import { useAppStore } from '@/stores/app'
 import { useGeneralStore } from '@/stores/general'
@@ -19,7 +18,6 @@ const General = defineAsyncComponent(() => import('./components/general/index.vu
 const Market = defineAsyncComponent(() => import('./components/market/index.vue'))
 const Shortcut = defineAsyncComponent(() => import('./components/shortcut/index.vue'))
 
-useTray()
 const appStore = useAppStore()
 const current = ref(0)
 const { t } = useI18n()

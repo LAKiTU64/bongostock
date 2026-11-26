@@ -9,6 +9,10 @@ Default permissions for the plugin
 - `allow-hide-window`
 - `allow-set-always-on-top`
 - `allow-set-taskbar-visibility`
+- `allow-request-window-recovery`
+- `allow-take-window-recovery-request`
+- `allow-reveal-recovered-main`
+- `allow-display-work-areas`
 
 ## Permission Table
 
@@ -18,6 +22,32 @@ Default permissions for the plugin
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`custom-window:allow-display-work-areas`
+
+</td>
+<td>
+
+Enables the display_work_areas command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-display-work-areas`
+
+</td>
+<td>
+
+Denies the display_work_areas command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
@@ -41,6 +71,58 @@ Enables the hide_window command without any pre-configured scope.
 <td>
 
 Denies the hide_window command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:allow-request-window-recovery`
+
+</td>
+<td>
+
+Enables the request_window_recovery command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-request-window-recovery`
+
+</td>
+<td>
+
+Denies the request_window_recovery command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:allow-reveal-recovered-main`
+
+</td>
+<td>
+
+Enables the reveal_recovered_main command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-reveal-recovered-main`
+
+</td>
+<td>
+
+Denies the reveal_recovered_main command without any pre-configured scope.
 
 </td>
 </tr>
@@ -145,6 +227,32 @@ Enables the show_window command without any pre-configured scope.
 <td>
 
 Denies the show_window command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:allow-take-window-recovery-request`
+
+</td>
+<td>
+
+Enables the take_window_recovery_request command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-take-window-recovery-request`
+
+</td>
+<td>
+
+Denies the take_window_recovery_request command without any pre-configured scope.
 
 </td>
 </tr>

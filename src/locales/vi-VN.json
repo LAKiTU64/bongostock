@@ -197,6 +197,8 @@
         "preference": "Tùy chỉnh...",
         "hideCat": "Ẩn Mèo",
         "showCat": "Hiện Mèo",
+        "recoverWindows": "Đưa mèo và bảng về màn hình",
+        "recoveryFailed": "Không thể khôi phục cửa sổ. Hãy thử lại hoặc kết nối lại màn hình.",
         "passThrough": "Click xuyên",
         "windowSize": "Kích thước",
         "opacity": "Độ mờ",

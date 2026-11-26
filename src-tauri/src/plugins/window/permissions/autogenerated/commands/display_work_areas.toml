@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-display-work-areas"
+description = "Enables the display_work_areas command without any pre-configured scope."
+commands.allow = ["display_work_areas"]
+
+[[permission]]
+identifier = "deny-display-work-areas"
+description = "Denies the display_work_areas command without any pre-configured scope."
+commands.deny = ["display_work_areas"]

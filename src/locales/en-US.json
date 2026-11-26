@@ -197,6 +197,8 @@
         "preference": "Preferences...",
         "hideCat": "Hide Cat",
         "showCat": "Show Cat",
+        "recoverWindows": "Recover Pet and Panel",
+        "recoveryFailed": "Window recovery failed. Try again or reconnect the display.",
         "passThrough": "Pass Through",
         "windowSize": "Window Size",
         "opacity": "Opacity",

@@ -1,5 +1,9 @@
 const COMMANDS: &[&str] = &[
     "show_window",
+    "request_window_recovery",
+    "take_window_recovery_request",
+    "reveal_recovered_main",
+    "display_work_areas",
     "hide_window",
     "set_always_on_top",
     "set_taskbar_visibility",

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-take-window-recovery-request"
+description = "Enables the take_window_recovery_request command without any pre-configured scope."
+commands.allow = ["take_window_recovery_request"]
+
+[[permission]]
+identifier = "deny-take-window-recovery-request"
+description = "Denies the take_window_recovery_request command without any pre-configured scope."
+commands.deny = ["take_window_recovery_request"]

@@ -197,6 +197,8 @@
         "preference": "偏好设置...",
         "hideCat": "隐藏猫咪",
         "showCat": "显示猫咪",
+        "recoverWindows": "找回桌宠与浮窗",
+        "recoveryFailed": "窗口恢复失败，请重试或重新连接显示器。",
         "passThrough": "窗口穿透",
         "windowSize": "窗口尺寸",
         "opacity": "不透明度",

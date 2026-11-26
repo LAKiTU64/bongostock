@@ -53,7 +53,8 @@ pub async fn market_request(request: MarketRequest) -> Result<MarketResponse, St
     let method = match request.method.trim().to_uppercase().as_str() {
         "GET" => Method::GET,
         "POST" => Method::POST,
-        _ => return Err("外接行情只支持 GET 和 POST".to_string()),
+        "DELETE" => Method::DELETE,
+        _ => return Err("外接行情只支持 GET、POST 和 DELETE".to_string()),
     };
 
     let timeout_ms = request

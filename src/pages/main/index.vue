@@ -9,17 +9,21 @@ import { useAppMenu } from '@/composables/useAppMenu'
 import { useDevice } from '@/composables/useDevice'
 import { closeStockPanel, toggleStockPanel } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
+import { useTray } from '@/composables/useTray'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { hideWindow, setAlwaysOnTop, setTaskbarVisibility, showWindow } from '@/plugins/window'
+import { installWindowRecovery, recoveringWindows, reportWindowRecoveryError } from '@/plugins/windowRecovery'
 import { useCatStore } from '@/stores/cat'
 import { useGeneralStore } from '@/stores/general.ts'
 import { useSkinStore } from '@/stores/skin'
 import { isMac, isWindows } from '@/utils/platform'
+import { ensureWindowOnScreen, windowPositionQueue } from '@/utils/windowPlacement'
 
 const { mouseLeftDown, mouseRightDown, pressedKeys, startListening } = useDevice()
 const appWindow = getCurrentWebviewWindow()
 const catStore = useCatStore()
 const { getBaseMenu, getExitMenu } = useAppMenu()
+useTray()
 const generalStore = useGeneralStore()
 const skinStore = useSkinStore()
 const leftPulse = ref(false)
@@ -56,6 +60,8 @@ let dragResetTimer: ReturnType<typeof setTimeout> | undefined
 let contextMenuOpen = false
 let panelFocusTimer: ReturnType<typeof setTimeout> | undefined
 let unlistenMainFocus: (() => void) | undefined
+let unlistenRecovery: (() => void) | undefined
+let initialSizeApplied = false
 const panelPinned = ref(false)
 
 const DRAG_THRESHOLD = 5
@@ -68,10 +74,12 @@ onUnmounted(() => {
   clearTimeout(panelFocusTimer)
   clearTimeout(dragResetTimer)
   unlistenMainFocus?.()
+  unlistenRecovery?.()
 })
 
 onMounted(async () => {
   await setCompactWindowSize()
+  unlistenRecovery = await installWindowRecovery()
   await appWindow.onScaleChanged(async ({ payload }) => {
     displayScaleFactor.value = isMac ? payload.scaleFactor : globalThis.devicePixelRatio
     await setCompactWindowSize()
@@ -107,6 +115,7 @@ watch(() => catStore.interactionCount, (count) => {
 
 watch(() => catStore.window.visible, async (value) => {
   if (value) {
+    if (recoveringWindows.value) return
     showWindow()
     return
   }
@@ -162,12 +171,18 @@ function handlePetClick() {
 }
 
 async function setCompactWindowSize() {
-  if (!isMac) displayScaleFactor.value = globalThis.devicePixelRatio
+  const forceSafePosition = recoveringWindows.value
+  await windowPositionQueue(async () => {
+    if (!isMac) displayScaleFactor.value = globalThis.devicePixelRatio
 
-  await appWindow.setSize(new LogicalSize({
-    width: (compactContentWidth.value + COMPACT_LEFT_GUTTER) * compactScale.value / compactLayoutScaleFactor.value,
-    height: (compactContentHeight.value + 1) * compactScale.value / compactLayoutScaleFactor.value,
-  }))
+    await appWindow.setSize(new LogicalSize({
+      width: (compactContentWidth.value + COMPACT_LEFT_GUTTER) * compactScale.value / compactLayoutScaleFactor.value,
+      height: (compactContentHeight.value + 1) * compactScale.value / compactLayoutScaleFactor.value,
+    }))
+    // Run after final skin/scale sizing too, not just App.vue's initial restore.
+    if (!initialSizeApplied || forceSafePosition || catStore.window.keepInScreen) await ensureWindowOnScreen(appWindow)
+    initialSizeApplied = true
+  }).catch(reportWindowRecoveryError)
 }
 
 function scheduleCloseStockPanelIfUnfocused() {
@@ -176,7 +191,7 @@ function scheduleCloseStockPanelIfUnfocused() {
 }
 
 async function closeStockPanelIfUnfocused() {
-  if (contextMenuOpen || panelPinned.value) return
+  if (contextMenuOpen || recoveringWindows.value || panelPinned.value) return
 
   const panel = await WebviewWindow.getByLabel(WINDOW_LABEL.STOCK_PANEL)
 

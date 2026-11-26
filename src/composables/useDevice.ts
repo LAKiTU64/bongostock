@@ -224,9 +224,10 @@ export function useDevice() {
 
     if (payload.kind !== 'MouseMove' || !catStore.window.hideOnHover) return
 
+    const multiplier = appStore.windowState[WINDOW_LABEL.MAIN]?.space === 'macos-logical' ? 1 : scaleFactor.value
     onHideOnHover(
-      payload.value.x * scaleFactor.value,
-      payload.value.y * scaleFactor.value,
+      payload.value.x * multiplier,
+      payload.value.y * multiplier,
     )
   })
 

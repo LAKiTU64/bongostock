@@ -16,12 +16,13 @@ const COMMAND = {
   SET_TASKBAR_VISIBILITY: 'plugin:custom-window|set_taskbar_visibility',
 }
 
-export function showWindow(label?: WindowLabel, position?: { x: number, y: number }) {
+/** Position via windowPlacement before showing; native x/y arguments are physical. */
+export function showWindow(label?: WindowLabel) {
   if (label) {
     return invoke(COMMAND.SHOW_LABELED_WINDOW, { label })
   }
 
-  return invoke(COMMAND.SHOW_WINDOW, position)
+  return invoke(COMMAND.SHOW_WINDOW)
 }
 
 export function hideWindow(label?: WindowLabel) {

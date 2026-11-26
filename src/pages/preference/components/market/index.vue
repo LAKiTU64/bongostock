@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { emit } from '@tauri-apps/api/event'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { Button, Input, InputNumber, message, Modal, Select, Slider, SpaceAddon, SpaceCompact, Tag } from 'antdv-next'
 import { computed, ref, watch } from 'vue'
 
@@ -10,6 +11,7 @@ import type { WatchlistGroup } from '@/stores/watchlist'
 import ProListItem from '@/components/pro-list-item/index.vue'
 import ProList from '@/components/pro-list/index.vue'
 import { LISTEN_KEY } from '@/constants'
+import { commitGatewayToken, forgetGatewayToken, keychainEnabled, tokenStored } from '@/market/gatewayToken'
 import { fetchQuotes, searchSecurityCandidates, testExternalMarketConnection } from '@/market/marketService'
 import {
   diffWatchlist,
@@ -30,6 +32,8 @@ import {
   MIN_STATE_RETENTION_SECONDS,
   useWatchlistStore,
 } from '@/stores/watchlist'
+
+import BiliLogin from './BiliLogin.vue'
 
 const watchlistStore = useWatchlistStore()
 const marketStore = useMarketStore()
@@ -85,6 +89,72 @@ const isTestingConnection = ref(false)
 const connectionMessage = ref('')
 const externalUsesHttp = computed(() => baseUrlDraft.value.trim().toLowerCase().startsWith('http://'))
 let quoteNameRequestId = 0
+
+// Token 不落在配置文件里，也没法回显（读出来只用于请求）。
+// 输入框只当草稿：提交后写进系统钥匙串并立刻清空，因此界面上永远是空的。
+const tokenDraft = ref('')
+const tokenBusy = ref(false)
+
+// 正式版看钥匙串，开发模式看 store（此时 token 仍随配置文件明文落盘）。
+const hasToken = computed(() => keychainEnabled ? tokenStored.value : Boolean(marketStore.bearerToken.trim()))
+const tokenDescription = computed(() => {
+  if (!keychainEnabled) return '开发模式：令牌保存在本地配置文件里，重启后自动恢复。'
+  return hasToken.value
+    ? '令牌保存在系统钥匙串中，不写入应用配置文件。输入新值可替换。'
+    : '令牌将保存在系统钥匙串中，不写入应用配置文件。'
+})
+
+async function commitToken() {
+  const value = tokenDraft.value.trim()
+  if (!value) return
+
+  tokenBusy.value = true
+  try {
+    await commitGatewayToken(value)
+    tokenDraft.value = ''
+    emitMarketSettings()
+    message.success(keychainEnabled ? '令牌已保存到系统凭据库' : '令牌已保存在本地配置文件')
+  } catch (error) {
+    message.error(`保存令牌失败：${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    tokenBusy.value = false
+  }
+}
+
+async function clearToken() {
+  tokenBusy.value = true
+  try {
+    await forgetGatewayToken()
+    emitMarketSettings()
+    message.success(keychainEnabled ? '已清除系统凭据库中的令牌' : '已清除本地配置中的令牌')
+  } catch (error) {
+    message.error(`清除令牌失败：${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    tokenBusy.value = false
+  }
+}
+
+/**
+ * 用系统浏览器打开自选管理页。
+ * token 通过 ?t= 传一次，服务端换成 HttpOnly cookie 后立刻 302 到干净地址，
+ * 所以地址栏和浏览器历史里不会长期留着 token。
+ */
+function openWatchlistPage() {
+  commitBaseUrl()
+  const base = marketStore.external.baseUrl.replace(/\/+$/, '')
+  const token = marketStore.bearerToken.trim()
+
+  if (!base) {
+    message.warning('请先填写外接服务地址')
+    return
+  }
+  if (!token) {
+    message.warning('请先设置 Bearer Token')
+    return
+  }
+
+  void openUrl(`${base}/watchlist?t=${encodeURIComponent(token)}`)
+}
 
 watch(groups, (values) => {
   if (values.some(group => group.id === selectedGroupId.value)) return
@@ -368,14 +438,26 @@ function getQuoteName(code: string) {
     </ProListItem>
 
     <ProListItem
-      description="令牌保存在本机应用数据中，重启后会自动恢复。请勿分享或提交包含令牌的配置文件。"
+      :description="tokenDescription"
       title="Bearer Token（可选）"
     >
-      <Input
-        v-model:value="marketStore.bearerToken"
-        type="password"
-        @change="emitMarketSettings"
-      />
+      <SpaceCompact>
+        <Input
+          v-model:value="tokenDraft"
+          :disabled="tokenBusy"
+          :placeholder="hasToken ? '已保存，输入新值可替换' : '未设置'"
+          type="password"
+          @blur="commitToken"
+          @press-enter="commitToken"
+        />
+        <Button
+          v-if="hasToken"
+          :loading="tokenBusy"
+          @click="clearToken"
+        >
+          清除
+        </Button>
+      </SpaceCompact>
     </ProListItem>
 
     <ProListItem
@@ -413,7 +495,18 @@ function getQuoteName(code: string) {
         </span>
       </div>
     </ProListItem>
+
+    <ProListItem
+      description="用系统浏览器打开云端自选管理页，可直接增删分组和股票。打开一次后 30 天内免输令牌。"
+      title="自选管理页"
+    >
+      <Button @click="openWatchlistPage">
+        打开管理页
+      </Button>
+    </ProListItem>
   </ProList>
+
+  <BiliLogin />
 
   <ProList title="行情浮窗">
     <ProListItem
@@ -501,7 +594,7 @@ function getQuoteName(code: string) {
           v-model:value="inputGroupName"
           aria-label="新分组名称"
           class="min-w-55 flex-1"
-          maxlength="20"
+          :maxlength="20"
           placeholder="例如：长期持有"
           @press-enter="addGroup"
         />
@@ -530,7 +623,7 @@ function getQuoteName(code: string) {
           v-model:value="inputCode"
           aria-label="股票或基金代码"
           class="min-w-48 flex-1"
-          maxlength="8"
+          :maxlength="8"
           placeholder="输入 6 位代码，例如 588170"
           @press-enter="addCode"
         />
@@ -603,7 +696,7 @@ function getQuoteName(code: string) {
             <Input
               :aria-label="`分组名称：${group.name}`"
               class="min-w-0 flex-1 text-3.5 font-600 px-0!"
-              maxlength="20"
+              :maxlength="20"
               size="small"
               :value="group.name"
               variant="borderless"

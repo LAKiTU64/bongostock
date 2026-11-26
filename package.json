@@ -12,6 +12,8 @@
     "mac:build-debug": "tauri build --debug --bundles app && tsx scripts/signMacDebug.ts",
     "audit:release": "node scripts/auditReleaseAssets.mjs",
     "check:docs": "node scripts/checkDocs.mjs",
+    "test:windows": "tsx --test test/windowRecovery.test.ts",
+    "test:video": "tsx --test test/videoHistory.test.ts test/audioSafety.test.ts test/biliHistory.test.ts test/biliHistorySession.test.ts test/progressReporter.test.ts test/feedPresentation.test.ts",
     "build:icon": "tsx scripts/buildIcon.ts",
     "preview": "vite preview",
     "tauri": "tauri",

@@ -76,4 +76,9 @@ export const useMarketStore = defineStore('market', () => {
     snapshot,
     replaceFromEvent,
   }
+}, {
+  // 正式构建才把 token 从持久化里摘掉（它存在系统凭据库，见 src/market/gatewayToken.ts）。
+  // 开发模式保持明文落盘：tauri dev 每次重编译都会换掉二进制，macOS 会把新二进制
+  // 当成另一个程序，于是反复弹出「请输入登录钥匙串密码」的授权框。
+  ...(import.meta.env.DEV ? {} : { tauri: { filterKeys: ['bearerToken'] } }),
 })

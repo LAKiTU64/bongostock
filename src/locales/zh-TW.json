@@ -197,6 +197,8 @@
         "preference": "偏好設定…",
         "hideCat": "隱藏貓咪",
         "showCat": "顯示貓咪",
+        "recoverWindows": "找回桌寵與浮動視窗",
+        "recoveryFailed": "視窗恢復失敗，請重試或重新連接顯示器。",
         "passThrough": "視窗穿透",
         "windowSize": "視窗尺寸",
         "opacity": "不透明度",

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import { WINDOW_LABEL } from '@/constants'
 import { showWindow } from '@/plugins/window'
+import { requestWindowRecovery } from '@/plugins/windowRecovery'
 import { useCatStore } from '@/stores/cat'
 import { isMac } from '@/utils/platform'
 
@@ -48,6 +49,10 @@ export function useAppMenu() {
         action: () => {
           catStore.window.visible = !catStore.window.visible
         },
+      }),
+      MenuItem.new({
+        text: t('composables.useAppMenu.labels.recoverWindows'),
+        action: requestWindowRecovery,
       }),
       PredefinedMenuItem.new({ item: 'Separator' }),
       CheckMenuItem.new({

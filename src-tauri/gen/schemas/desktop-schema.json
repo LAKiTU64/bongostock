@@ -4275,16 +4275,34 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`",
           "type": "string",
           "const": "custom-window:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`"
+        },
+        {
+          "description": "Enables the display_work_areas command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:allow-display-work-areas",
+          "markdownDescription": "Enables the display_work_areas command without any pre-configured scope."
         },
         {
           "description": "Enables the hide_window command without any pre-configured scope.",
           "type": "string",
           "const": "custom-window:allow-hide-window",
           "markdownDescription": "Enables the hide_window command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_window_recovery command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:allow-request-window-recovery",
+          "markdownDescription": "Enables the request_window_recovery command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the reveal_recovered_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:allow-reveal-recovered-main",
+          "markdownDescription": "Enables the reveal_recovered_main command without any pre-configured scope."
         },
         {
           "description": "Enables the set_always_on_top command without any pre-configured scope.",
@@ -4311,10 +4329,34 @@
           "markdownDescription": "Enables the show_window command without any pre-configured scope."
         },
         {
+          "description": "Enables the take_window_recovery_request command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:allow-take-window-recovery-request",
+          "markdownDescription": "Enables the take_window_recovery_request command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the display_work_areas command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:deny-display-work-areas",
+          "markdownDescription": "Denies the display_work_areas command without any pre-configured scope."
+        },
+        {
           "description": "Denies the hide_window command without any pre-configured scope.",
           "type": "string",
           "const": "custom-window:deny-hide-window",
           "markdownDescription": "Denies the hide_window command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_window_recovery command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:deny-request-window-recovery",
+          "markdownDescription": "Denies the request_window_recovery command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the reveal_recovered_main command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:deny-reveal-recovered-main",
+          "markdownDescription": "Denies the reveal_recovered_main command without any pre-configured scope."
         },
         {
           "description": "Denies the set_always_on_top command without any pre-configured scope.",
@@ -4339,6 +4381,12 @@
           "type": "string",
           "const": "custom-window:deny-show-window",
           "markdownDescription": "Denies the show_window command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the take_window_recovery_request command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:deny-take-window-recovery-request",
+          "markdownDescription": "Denies the take_window_recovery_request command without any pre-configured scope."
         },
         {
           "description": "This permission set configures the types of dialogs\navailable from the dialog plugin.\n\n#### Granted Permissions\n\nAll dialog types are enabled.\n\n\n\n#### This default permission set includes:\n\n- `allow-message`\n- `allow-save`\n- `allow-open`",

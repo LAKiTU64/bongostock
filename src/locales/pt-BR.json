@@ -197,6 +197,8 @@
         "preference": "Preferências...",
         "hideCat": "Ocultar Gato",
         "showCat": "Mostrar Gato",
+        "recoverWindows": "Recuperar Gato e Painel",
+        "recoveryFailed": "Não foi possível recuperar as janelas. Tente novamente ou reconecte o monitor.",
         "passThrough": "Janela Transparente",
         "windowSize": "Tamanho da Janela",
         "opacity": "Opacidade",
