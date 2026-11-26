@@ -208,7 +208,7 @@ function onEnded(event: Event) {
   finishReport(true)
   audioSafety.stop()
   paused.value = true
-  message.value = parts.value.length > 1 ? '本 P 已看完，可在选集中切换。' : '已看完，再次播放将从头开始。'
+  message.value = ''
 }
 
 function onError(event: Event) {

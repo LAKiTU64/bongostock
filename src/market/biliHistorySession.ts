@@ -15,6 +15,8 @@ export interface BiliHistoryState {
   nextCursor?: string
   notice: string
   error: string
+  refreshingRecent?: boolean
+  recentError?: string
 }
 
 interface Dependencies {
@@ -33,6 +35,10 @@ export function createBiliHistorySession(deps: Dependencies) {
   let disposed = false
   let pages = 0
   const seenCursors = new Set<string>()
+  let accountEpoch = 0
+  let progressRequest = 0
+  const rowRequests = new Map<string, number>()
+  let recentFlight: Promise<void> | undefined
 
   function publish(patch: Partial<BiliHistoryState>) {
     state = { ...state, ...patch }
@@ -40,11 +46,14 @@ export function createBiliHistorySession(deps: Dependencies) {
   }
 
   function reset() {
+    accountEpoch += 1
+    recentFlight = undefined
+    rowRequests.clear()
     deps.invalidatePlayback()
     historyRequests.next()
     pages = 0
     seenCursors.clear()
-    publish({ context: undefined, status: undefined, loading: false, loaded: false, rows: [], hasMore: false, nextCursor: undefined, error: '' })
+    publish({ context: undefined, status: undefined, loading: false, loaded: false, rows: [], hasMore: false, nextCursor: undefined, error: '', notice: '', refreshingRecent: false, recentError: '' })
   }
 
   async function refreshStatus(invalidate = false) {
@@ -112,6 +121,75 @@ export function createBiliHistorySession(deps: Dependencies) {
     }
   }
 
+  function mergeProgress(page: BiliHistoryPage, identity: BiliIdentity, request: number, head: boolean) {
+    const items = mergeCloudHistory([], page, identity)
+    const existing = new Map(state.rows.map(row => [`${row.bvid}:${row.cid}`, row]))
+    const accepted = items.filter((row) => {
+      const key = `${row.bvid}:${row.cid}`
+      const previous = existing.get(key)
+      // Equal upstream timestamps still allow backwards seeks, but only from
+      // a first-page request newer than the one that supplied the cached row.
+      const accept = !previous || row.watchedAtMs > previous.watchedAtMs
+        || (head && row.watchedAtMs === previous.watchedAtMs && request >= (rowRequests.get(key) ?? 0))
+      if (accept) {
+        existing.delete(key)
+        rowRequests.set(key, request)
+      }
+      return accept
+    })
+    const rows = mergeCloudHistory([...existing.values()], { ...page, items: accepted }, identity)
+    const retainedKeys = new Set(rows.map(row => `${row.bvid}:${row.cid}`))
+    for (const key of rowRequests.keys()) {
+      if (!retainedKeys.has(key)) rowRequests.delete(key)
+    }
+    publish({ rows, loaded: true })
+    return items
+  }
+
+  /** The visual pager owns this cursor. Reading a batch only enriches resume data. */
+  async function readPage(cursor?: string): Promise<BiliHistoryPage> {
+    const context = state.context
+    const epoch = accountEpoch
+    if (disposed || !context?.identity) throw new Error('请先确认账号后重试。')
+    const request = ++progressRequest
+    try {
+      const page = await deps.history(context.identity, context.connection, cursor)
+      if (disposed || epoch !== accountEpoch || !samePlaybackContext(context, state.context)) throw new Error('账号已变化，请重试。')
+      const items = mergeProgress(page, context.identity, request, !cursor)
+      return { ...page, items }
+    } catch (error) {
+      if (!disposed && epoch === accountEpoch && isBiliIdentityError(error)) void refreshStatus(true)
+      throw error
+    }
+  }
+
+  /** Refresh recent cloud progress, never the list's order or pagination cursor. */
+  function refreshRecent(): Promise<void> {
+    if (recentFlight) return recentFlight
+    const context = state.context
+    if (disposed || !context?.identity) return Promise.resolve()
+    const epoch = accountEpoch
+    const request = ++progressRequest
+    publish({ refreshingRecent: true, recentError: '' })
+    recentFlight = (async () => {
+      try {
+        const page = await deps.history(context.identity!, context.connection)
+        if (disposed || epoch !== accountEpoch || !samePlaybackContext(context, state.context)) return
+        mergeProgress(page, context.identity!, request, true)
+      } catch (error) {
+        if (disposed || epoch !== accountEpoch) return
+        if (isBiliIdentityError(error)) void refreshStatus(true)
+        else publish({ recentError: '云端进度更新失败，暂用已读取的进度；可重试。' })
+      } finally {
+        if (!disposed && epoch === accountEpoch) {
+          recentFlight = undefined
+          publish({ refreshingRecent: false })
+        }
+      }
+    })()
+    return recentFlight
+  }
+
   return {
     invalidate() {
       if (disposed) return
@@ -121,9 +199,13 @@ export function createBiliHistorySession(deps: Dependencies) {
     },
     refreshStatus,
     loadHistory,
+    readPage,
+    refreshRecent,
     snapshot: () => state,
     dispose() {
       disposed = true
+      accountEpoch += 1
+      recentFlight = undefined
       statusRequests.next()
       historyRequests.next()
       // Normal view teardown lets the player's final bounded report drain.

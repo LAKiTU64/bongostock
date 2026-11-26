@@ -5,7 +5,9 @@ import test from 'node:test'
 import type { BiliHistoryItem, BiliHistoryPage, BiliSessionStatus } from '../src/market/biliHistory'
 import type { BiliHistoryState } from '../src/market/biliHistorySession'
 
+import { cloudHistoryItems } from '../src/market/biliHistory'
 import { createBiliHistorySession } from '../src/market/biliHistorySession'
+import { createFeedPager, visibleVideoItems } from '../src/market/feedPager'
 import { GatewayError } from '../src/market/gatewayTransport'
 
 const connection = { baseUrl: 'https://example.test', bearerToken: 'test-token', timeoutMs: 8000 }
@@ -244,5 +246,166 @@ test('duplicate load-more is single flight and disposed sessions ignore pending 
   session.dispose()
   pending.resolve({ ...page, items: [{ ...row, cid: 102 }] })
   await more
+  assert.equal(session.snapshot().rows.length, 0)
+})
+
+test('recent cloud refresh replaces backwards-seek progress without resetting the pagination cursor', async () => {
+  let recent = false
+  const cursors: (string | undefined)[] = []
+  const { session, state } = setup({ history: async (_identity, _connection, cursor) => {
+    cursors.push(cursor)
+    if (recent && !cursor) return { ...page, items: [{ ...row, positionSec: 5 }], nextCursor: 'new-first-page-cursor' }
+    if (cursor) return { ...page, items: [{ ...row, cid: 102, page: 2, watchedAtMs: 500 }], nextCursor: 'cursor2' }
+    return page
+  } })
+  await session.refreshStatus()
+  await session.loadHistory()
+  await session.loadHistory(true)
+  recent = true
+  await session.refreshRecent()
+  assert.equal(state().rows.find(item => item.cid === 101)?.positionSec, 5)
+  assert.equal(state().rows.length, 2)
+  assert.equal(state().nextCursor, 'cursor2')
+  assert.equal(state().hasMore, true)
+  await session.loadHistory(true)
+  assert.deepEqual(cursors, [undefined, 'cursor1', undefined, 'cursor2'])
+})
+
+test('recent progress and page fetches use independent error/loading state and never splice cursors', async () => {
+  const pending = deferred<BiliHistoryPage>()
+  let failRecent = false
+  const { session, state } = setup({ history: async (_identity, _connection, cursor) => {
+    if (cursor === 'external-tail') return pending.promise
+    if (failRecent) throw new Error('recent offline')
+    return page
+  } })
+  await session.refreshStatus()
+  await session.loadHistory()
+  const next = session.readPage('external-tail')
+  failRecent = true
+  await session.refreshRecent()
+  assert.equal(state().error, '')
+  assert.equal(state().loading, false)
+  assert.match(state().recentError!, /更新失败/)
+  pending.resolve({ ...page, items: [{ ...row, cid: 102 }], nextCursor: 'external-next' })
+  const result = await next
+  assert.equal(result.nextCursor, 'external-next')
+  assert.equal(state().nextCursor, 'cursor1', 'a visual page request cannot overwrite another cursor')
+  assert.match(state().recentError!, /更新失败/, 'pagination must not erase a progress-refresh failure')
+})
+
+test('tail history batches retain the newest P and first-page refresh accepts a same-timestamp backwards seek', async () => {
+  let backwards = false
+  const newer = { ...row, cid: 102, page: 2, positionSec: 80, watchedAtMs: 2000 }
+  const { session, state } = setup({ history: async (_identity, _connection, cursor) => ({
+    ...page,
+    items: cursor ? [row] : [{ ...newer, positionSec: backwards ? 5 : 80 }],
+  }) })
+  await session.refreshStatus()
+  await session.readPage()
+  await session.readPage('tail')
+  assert.equal(cloudHistoryItems(state().rows)[0]?.cid, 102)
+  assert.equal(state().rows.find(item => item.cid === 102)?.positionSec, 80)
+  backwards = true
+  await session.readPage()
+  assert.equal(state().rows.find(item => item.cid === 102)?.positionSec, 5)
+})
+
+test('late first-page responses cannot overwrite newer recent progress at the same timestamp', async () => {
+  for (const positionSec of [5, 40]) {
+    const late = deferred<BiliHistoryPage>()
+    let calls = 0
+    const { session, state } = setup({ history: async () => {
+      calls += 1
+      if (calls === 1) return late.promise
+      return { ...page, items: [{ ...row, positionSec }] }
+    } })
+    await session.refreshStatus()
+    const first = session.readPage()
+    await session.refreshRecent()
+    late.resolve(page)
+    await first
+    assert.equal(state().rows[0]?.positionSec, positionSec)
+    session.dispose()
+  }
+})
+
+test('late recent responses cannot overwrite a newer first-page seek at the same timestamp', async () => {
+  const late = deferred<BiliHistoryPage>()
+  let calls = 0
+  const { session, state } = setup({ history: async () => {
+    calls += 1
+    if (calls === 1) return late.promise
+    return { ...page, items: [{ ...row, positionSec: 5 }] }
+  } })
+  await session.refreshStatus()
+  const recent = session.refreshRecent()
+  await session.readPage()
+  late.resolve(page)
+  await recent
+  assert.equal(state().rows[0]?.positionSec, 5)
+  session.dispose()
+})
+
+test('return refresh is single flight; account invalidation and disposal reject late progress and pages', async () => {
+  for (const mode of ['invalidate', 'dispose']) {
+    const late = deferred<BiliHistoryPage>()
+    let calls = 0
+    const { session, state } = setup({ history: async () => {
+      calls += 1
+      return late.promise
+    } })
+    await session.refreshStatus()
+    const recent = session.refreshRecent()
+    const sameRecent = session.refreshRecent()
+    assert.equal(recent, sameRecent)
+    const next = session.readPage('tail')
+    assert.equal(calls, 2)
+    if (mode === 'invalidate') session.invalidate()
+    else session.dispose()
+    late.resolve(page)
+    await recent
+    await assert.rejects(next, /账号已变化/)
+    assert.equal(session.snapshot().rows.length, 0)
+    if (mode === 'invalidate') assert.equal(state().refreshingRecent, false)
+  }
+})
+
+test('a history pager retains visual order through return refresh and clears while viewing another source', async () => {
+  const rows = Array.from({ length: 20 }, (_, index) => ({ ...row, bvid: `BV${String(index).padStart(10, '0')}`, watchedAtMs: 20_000 - index }))
+  let recent = false
+  let currentStatus = status
+  const pager = createFeedPager({
+    changed: () => {},
+    fetch: async (source, _page, cursor) => {
+      if (source !== 'history') return { items: [{ id: 'feed', source, title: 'feed', url: '' }], hasMore: false }
+      const batch = await session.readPage(cursor)
+      return { ...batch, items: cloudHistoryItems(batch.items) }
+    },
+  })
+  const session = createBiliHistorySession({
+    connection: () => connection,
+    status: async () => currentStatus,
+    history: async () => ({ ...page, items: recent ? [{ ...rows[2]!, cid: 999, page: 2, positionSec: 754, watchedAtMs: 30_000 }] : rows, nextCursor: recent ? 'recent-cursor' : 'tail-cursor' }),
+    changed: state => pager.updateMetadata('history', cloudHistoryItems(state.rows)),
+    invalidatePlayback: () => pager.invalidate(),
+  })
+  await session.refreshStatus()
+  await pager.select('history')
+  await pager.move(1)
+  const order = pager.snapshot().items.map(item => item.id)
+  recent = true
+  await session.refreshRecent()
+  assert.deepEqual(pager.snapshot().items.map(item => item.id), order)
+  assert.equal(pager.snapshot().page, 1)
+  assert.equal(pager.snapshot().nextCursor, 'tail-cursor')
+  assert.equal(visibleVideoItems(pager.snapshot())[0]?.cid, 999)
+  assert.equal(visibleVideoItems(pager.snapshot())[0]?.stat, 'P2 · 12:34')
+  assert.equal(session.snapshot().rows.find(item => item.cid === 999)?.positionSec, 754)
+  await pager.select('rcmd')
+  currentStatus = { ...status, mid: '456', revision: 'new' }
+  await session.refreshStatus()
+  assert.equal(pager.snapshot('history').items.length, 0)
+  assert.equal(pager.snapshot('history').nextCursor, undefined)
   assert.equal(session.snapshot().rows.length, 0)
 })

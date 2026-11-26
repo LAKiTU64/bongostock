@@ -1,7 +1,12 @@
 import type { BiliHistoryPage, BiliIdentity, BiliProgressReport, BiliSessionStatus } from './biliHistory'
 import type { GatewayConnection } from './gatewayTransport'
 
+import { createBiliFavoritesClient } from './biliFavorites'
 import { requestGateway } from './gatewayRequest'
+
+const favorites = createBiliFavoritesClient((path, connection) => requestGateway<unknown>(path, 'GET', null, connection))
+export const fetchBiliFavoriteFolders = favorites.folders
+export const fetchBiliFavoriteVideos = favorites.videos
 
 export type { BiliSessionStatus } from './biliHistory'
 

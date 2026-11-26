@@ -1004,7 +1004,6 @@ function buildKlineChart(klines: StockKline[]) {
       </button>
       <button
         :class="{ active: panelMode === 'fun' }"
-        title="刷 B站视频"
         type="button"
         @click.stop="setPanelMode('fun')"
         @pointerdown.stop

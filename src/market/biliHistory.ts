@@ -137,7 +137,7 @@ export function cloudHistoryItems(cloud: readonly BiliHistoryItem[]): FeedItem[]
     url: `https://www.bilibili.com/video/${row.bvid}`,
     cover: row.cover,
     durationSec: row.durationSec,
-    stat: row.completed ? `P${row.page} 已看完` : `P${row.page} 看到 ${formatVideoTime(row.positionSec)}`,
+    stat: row.completed ? `P${row.page} 已看完` : `P${row.page} · ${formatVideoTime(row.positionSec)}`,
   }))
 }
 

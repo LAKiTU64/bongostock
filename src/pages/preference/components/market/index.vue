@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { emit } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { Button, Input, InputNumber, message, Modal, Select, Slider, SpaceAddon, SpaceCompact, Tag } from 'antdv-next'
+import { Button, Input, InputNumber, message, Modal, Select, Slider, SpaceAddon, SpaceCompact, Tag, theme } from 'antdv-next'
 import { computed, ref, watch } from 'vue'
 
 import type { SecurityCandidate } from '@/market/marketService'
@@ -14,11 +14,12 @@ import { LISTEN_KEY } from '@/constants'
 import { commitGatewayToken, forgetGatewayToken, keychainEnabled, tokenStored } from '@/market/gatewayToken'
 import { fetchQuotes, searchSecurityCandidates, testExternalMarketConnection } from '@/market/marketService'
 import {
+  confirmWatchlistPush,
   diffWatchlist,
   fetchCloudWatchlist,
   hasWatchlistDifference,
-  pushWatchlistToCloud,
-
+  resumeWatchlistSync,
+  watchlistSyncError,
 } from '@/market/watchlistSync'
 import { normalizeBaseUrl, useMarketStore } from '@/stores/market'
 import {
@@ -34,7 +35,9 @@ import {
 } from '@/stores/watchlist'
 
 import BiliLogin from './BiliLogin.vue'
+import { useWatchlistDrag } from './watchlistDrag'
 
+const { token: themeToken } = theme.useToken()
 const watchlistStore = useWatchlistStore()
 const marketStore = useMarketStore()
 const inputCode = ref('')
@@ -46,6 +49,20 @@ const securityCandidates = ref<SecurityCandidate[]>([])
 const quoteNames = ref<Record<string, string>>({})
 const isSearching = ref(false)
 const groups = computed(() => watchlistStore.groups)
+const watchlistRoot = ref<HTMLElement>()
+const {
+  active: dragSource,
+  announcement: dragAnnouncement,
+  start: startDrag,
+  keyboard: moveWithKeyboard,
+  groupCue,
+  codeCue,
+} = useWatchlistDrag({
+  root: watchlistRoot,
+  groups: () => groups.value,
+  moveGroup: (from, to) => watchlistStore.moveGroup(from, to),
+  moveCode: (groupId, from, to) => watchlistStore.moveCode(groupId, from, to),
+})
 const groupOptions = computed(() => groups.value.map(group => ({ label: group.name, value: group.id })))
 const fadeDelaySeconds = computed({
   get: () => watchlistStore.panel.fadeDelaySeconds,
@@ -377,9 +394,9 @@ async function confirmSync() {
     if (syncDirection.value === 'pull') {
       watchlistStore.setGroups(syncCloudGroups.value, true, false)
       watchlistStore.markSynced(syncCloudUpdatedAt.value)
+      resumeWatchlistSync()
     } else {
-      const updatedAt = await pushWatchlistToCloud(watchlistStore.groups, watchlistStore.lastSyncedAt)
-      watchlistStore.markSynced(updatedAt)
+      await confirmWatchlistPush(syncCloudUpdatedAt.value)
     }
     message.success(`${syncDirectionLabel(syncDirection.value)}成功`)
     syncOpen.value = false
@@ -582,6 +599,13 @@ function getQuoteName(code: string) {
           推送到云端
         </Button>
       </div>
+      <p
+        v-if="watchlistSyncError"
+        class="mt-2 text-3 color-[--ant-color-warning]"
+        role="alert"
+      >
+        {{ watchlistSyncError }}
+      </p>
     </ProListItem>
 
     <ProListItem
@@ -668,16 +692,40 @@ function getQuoteName(code: string) {
       title="当前分组"
       vertical
     >
-      <div class="grid gap-3">
+      <div
+        ref="watchlistRoot"
+        class="watchlist-sort grid gap-3"
+        :class="{ 'is-dragging': dragSource }"
+        :style="{ '--watchlist-sort-accent': themeToken.colorPrimary }"
+      >
         <section
           v-for="(group, groupIndex) in groups"
           :key="group.id"
-          class="overflow-hidden border-[--ant-color-border-secondary] bg-[--ant-color-bg-container] border rounded-lg"
+          class="watchlist-group border-[--ant-color-border-secondary] bg-[--ant-color-bg-container] border rounded-lg"
+          :class="[groupCue(group.id, groupIndex), { 'drag-source': dragSource?.kind === 'group' && dragSource.groupId === group.id }]"
+          :data-watchlist-group="group.id"
         >
-          <header class="flex items-center gap-1.5 border-b border-b-[--ant-color-border-secondary] bg-[--ant-color-fill-quaternary] px-2.5 py-1.5">
+          <header class="flex flex-wrap items-center gap-1.5 border-b border-b-[--ant-color-border-secondary] bg-[--ant-color-fill-quaternary] px-2.5 py-1.5 rounded-t-lg">
+            <Button
+              aria-keyshortcuts="ArrowUp ArrowDown Home End"
+              :aria-label="`拖动分组“${group.name}”排序，也可用上下方向键或 Home、End`"
+              class="sort-handle"
+              :disabled="groups.length < 2"
+              size="small"
+              title="拖动分组排序"
+              type="text"
+              @dragstart.prevent
+              @keydown="moveWithKeyboard($event, { kind: 'group', groupId: group.id })"
+              @pointerdown="startDrag($event, { kind: 'group', groupId: group.id })"
+            >
+              <span
+                aria-hidden="true"
+                class="i-lucide:grip-vertical"
+              />
+            </Button>
             <SpaceCompact size="small">
               <Button
-                aria-label="分组上移"
+                :aria-label="`分组“${group.name}”上移`"
                 :disabled="groupIndex === 0"
                 size="small"
                 @click="moveGroupUp(groupIndex)"
@@ -685,7 +733,7 @@ function getQuoteName(code: string) {
                 ↑
               </Button>
               <Button
-                aria-label="分组下移"
+                :aria-label="`分组“${group.name}”下移`"
                 :disabled="groupIndex === groups.length - 1"
                 size="small"
                 @click="moveGroupDown(groupIndex, groups.length)"
@@ -717,20 +765,43 @@ function getQuoteName(code: string) {
 
           <div
             v-if="group.codes.length"
-            class="grid"
+            class="watchlist-codes grid"
+            :data-watchlist-codes="group.id"
           >
             <div
               v-for="(code, codeIndex) in group.codes"
               :key="code"
-              class="flex items-center justify-between border-b border-b-[--ant-color-border-secondary] px-2.5 py-1.5 last:border-b-0"
+              class="watchlist-code flex items-center gap-2 border-b border-b-[--ant-color-border-secondary] px-2.5 py-1.5 last:border-b-0"
+              :class="[codeCue(group.id, code, codeIndex), { 'drag-source': dragSource?.kind === 'code' && dragSource.groupId === group.id && dragSource.code === code }]"
+              :data-watchlist-code="code"
             >
-              <div class="min-w-0 flex flex-col">
+              <Button
+                aria-keyshortcuts="ArrowUp ArrowDown Home End"
+                :aria-label="`拖动${group.name}中的${getQuoteName(code)}（${code}）排序，也可用上下方向键或 Home、End`"
+                class="sort-handle"
+                :disabled="group.codes.length < 2"
+                size="small"
+                title="拖动股票排序"
+                type="text"
+                @dragstart.prevent
+                @keydown="moveWithKeyboard($event, { kind: 'code', groupId: group.id, code })"
+                @pointerdown="startDrag($event, { kind: 'code', groupId: group.id, code })"
+              >
+                <span
+                  aria-hidden="true"
+                  class="i-lucide:grip-vertical"
+                />
+              </Button>
+              <div class="min-w-0 flex flex-1 flex-col">
                 <span class="truncate text-3.5 font-600 leading-5">{{ getQuoteName(code) }}</span>
                 <code class="text-3 color-[--ant-color-text-tertiary] leading-4">{{ code }}</code>
               </div>
-              <SpaceCompact size="small">
+              <SpaceCompact
+                class="shrink-0"
+                size="small"
+              >
                 <Button
-                  aria-label="股票上移"
+                  :aria-label="`${group.name}中的${code}上移`"
                   :disabled="codeIndex === 0"
                   size="small"
                   @click="moveCodeUp(group.id, codeIndex)"
@@ -738,7 +809,7 @@ function getQuoteName(code: string) {
                   ↑
                 </Button>
                 <Button
-                  aria-label="股票下移"
+                  :aria-label="`${group.name}中的${code}下移`"
                   :disabled="codeIndex === group.codes.length - 1"
                   size="small"
                   @click="moveCodeDown(group.id, codeIndex, group.codes.length)"
@@ -763,6 +834,13 @@ function getQuoteName(code: string) {
             这个分组还没有股票
           </div>
         </section>
+      </div>
+      <div
+        aria-live="polite"
+        class="sort-status"
+        role="status"
+      >
+        {{ dragAnnouncement }}
       </div>
     </ProListItem>
   </ProList>
@@ -847,6 +925,13 @@ function getQuoteName(code: string) {
       </div>
 
       <div
+        v-if="syncDiff.structureChanged && !syncDiff.localOnlyGroups.length && !syncDiff.cloudOnlyGroups.length && !syncDiff.localOnlyCodes.length && !syncDiff.cloudOnlyCodes.length"
+        class="mt-2 text-3"
+      >
+        分组名称、股票归属或排列顺序不同。
+      </div>
+
+      <div
         v-if="!hasWatchlistDifference(syncDiff)"
         class="mt-2 text-3 color-[--ant-color-success]"
       >
@@ -855,3 +940,74 @@ function getQuoteName(code: string) {
     </template>
   </Modal>
 </template>
+
+<style scoped>
+.watchlist-sort.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.watchlist-group,
+.watchlist-code {
+  position: relative;
+  min-width: 0;
+}
+
+.watchlist-codes {
+  max-height: min(28rem, 55vh);
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  padding-block: 3px;
+  border-radius: 0 0 8px 8px;
+}
+
+.sort-handle {
+  flex: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sort-handle:disabled {
+  cursor: default;
+}
+
+.is-dragging .sort-handle {
+  cursor: grabbing;
+}
+
+.drag-source {
+  outline: 1px dashed var(--watchlist-sort-accent);
+  outline-offset: -2px;
+}
+
+.drop-before::before,
+.drop-after::after {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 0;
+  height: 3px;
+  pointer-events: none;
+  content: '';
+  background: var(--watchlist-sort-accent);
+  border-radius: 2px;
+}
+
+.drop-before::before {
+  top: -2px;
+}
+
+.drop-after::after {
+  bottom: -2px;
+}
+
+.sort-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+</style>

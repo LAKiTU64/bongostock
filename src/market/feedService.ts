@@ -49,14 +49,20 @@ export interface FeedPage {
   hasMore: boolean
   nextCursor?: string
   notice?: string
+  weeklyNumber?: number
   fallbackSource?: string
   cached: boolean
   retrievedAt: string
 }
 
-export async function fetchFeeds(source: FeedSource, page = 1, options: { cursor?: string, refresh?: boolean } = {}): Promise<FeedPage> {
+export async function fetchWeeklyIssues(connection: GatewayConnection, refresh = false): Promise<unknown> {
+  return requestGateway(`/v1/feeds/weekly/issues${refresh ? '?refresh=1' : ''}`, 'GET', null, connection)
+}
+
+export async function fetchFeeds(source: FeedSource, page = 1, options: { cursor?: string, refresh?: boolean, weeklyNumber?: number } = {}, connection?: GatewayConnection): Promise<FeedPage> {
   const query = new URLSearchParams({ source, page: String(page), size: '20' })
+  if (options.weeklyNumber !== undefined) query.set('weeklyNumber', String(options.weeklyNumber))
   if (options.cursor) query.set('cursor', options.cursor)
   if (options.refresh) query.set('refresh', '1')
-  return requestGateway<FeedPage>(`/v1/feeds?${query}`)
+  return requestGateway<FeedPage>(`/v1/feeds?${query}`, 'GET', null, connection)
 }

@@ -1,11 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 
 import type { WatchlistGroup } from '@/stores/watchlist'
 
 import { INVOKE_KEY } from '@/constants'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
+
+import type { CloudWatchlistResult } from './watchlistSyncSession'
+
+import { createWatchlistSyncSession, sameWatchlist, WatchlistConflictError } from './watchlistSyncSession'
 
 interface ExternalMarketResponse {
   status: number
@@ -19,16 +23,8 @@ interface CloudWatchlistPayload {
   error?: string
 }
 
-export interface CloudWatchlistResult {
-  groups: WatchlistGroup[]
-  updatedAt: number
-}
-
-export class WatchlistConflictError extends Error {
-  constructor(readonly cloudState: CloudWatchlistResult) {
-    super('云端已有更新，已拉取最新数据')
-  }
-}
+export { WatchlistConflictError } from './watchlistSyncSession'
+export type { CloudWatchlistResult } from './watchlistSyncSession'
 
 function extractGroups(payload: unknown): WatchlistGroup[] {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return []
@@ -73,6 +69,7 @@ async function requestCloud(path: string, method: 'GET' | 'POST', body?: unknown
 }
 
 export interface WatchlistDiff {
+  structureChanged: boolean
   localGroups: number
   cloudGroups: number
   localCodes: number
@@ -100,6 +97,7 @@ export function diffWatchlist(local: readonly WatchlistGroup[], cloud: readonly 
     .map(group => group.name)
 
   return {
+    structureChanged: !sameWatchlist(local, cloud),
     localGroups: local.length,
     cloudGroups: cloud.length,
     localCodes: localCodes.size,
@@ -112,7 +110,8 @@ export function diffWatchlist(local: readonly WatchlistGroup[], cloud: readonly 
 }
 
 export function hasWatchlistDifference(diff: WatchlistDiff) {
-  return diff.localOnlyGroups.length > 0
+  return diff.structureChanged
+    || diff.localOnlyGroups.length > 0
     || diff.cloudOnlyGroups.length > 0
     || diff.localOnlyCodes.length > 0
     || diff.cloudOnlyCodes.length > 0
@@ -146,96 +145,90 @@ export async function pushWatchlistToCloud(groups: readonly WatchlistGroup[], ba
   }
 }
 
-/** 检查云端是否有更新，有则覆盖本地（含 lastSyncedAt）。无更新返回 false。 */
-export async function checkAndPull(): Promise<boolean> {
+export const watchlistSyncError = ref('')
+const sessions = new WeakMap<ReturnType<typeof useWatchlistStore>, ReturnType<typeof createWatchlistSyncSession>>()
+
+function syncSession() {
   const watchlist = useWatchlistStore()
-  const cloud = await fetchCloudWatchlist(watchlist.lastSyncedAt)
-  if (!cloud) return false
-
-  // 保护：云端为空而本地有数据时，不拉取（避免清空本地），而是把本地推上去。
-  // 覆盖"本地有数据、云端还没同步过"的首次迁移场景。
-  if (cloud.groups.length === 0 && watchlist.groups.length > 0) {
-    try {
-      const updatedAt = await pushWatchlistToCloud(watchlist.groups, watchlist.lastSyncedAt)
-      watchlist.markSynced(updatedAt)
-    } catch (error) {
-      if (error instanceof WatchlistConflictError && error.cloudState.groups.length > 0) {
-        // 冲突且云端真有数据：以云端为准。
-        watchlist.setGroups(error.cloudState.groups, true, false)
-        watchlist.markSynced(error.cloudState.updatedAt)
-      }
-      // 冲突但云端仍为空：保留本地，等待下次推送（云端空状态允许覆盖）。
-    }
-    return false
+  let session = sessions.get(watchlist)
+  if (!session) {
+    const settings = useMarketStore()
+    session = createWatchlistSyncSession({
+      read: () => ({
+        groups: watchlist.groups,
+        dirty: watchlist.dirty,
+        lastSyncedAt: watchlist.lastSyncedAt,
+        scope: JSON.stringify([settings.external.baseUrl, settings.bearerToken.trim()]),
+      }),
+      fetch: fetchCloudWatchlist,
+      push: pushWatchlistToCloud,
+      conflict: () => {
+        watchlistSyncError.value = '云端自选已有更新，本地修改已保留。请通过“从云端拉取”或“推送到云端”确认使用哪一份。'
+      },
+      apply: (cloud) => {
+        watchlist.setGroups(cloud.groups, true, false)
+        watchlist.markSynced(cloud.updatedAt)
+      },
+      acknowledge: (updatedAt, clearDirty) => {
+        if (clearDirty) watchlist.markSynced(updatedAt)
+        else watchlist.lastSyncedAt = updatedAt
+      },
+    })
+    sessions.set(watchlist, session)
   }
-
-  watchlist.setGroups(cloud.groups, true, false)
-  watchlist.markSynced(cloud.updatedAt)
-  return true
+  return session
 }
 
-/** 本地有待推送变更时推送到云端；成功清除 dirty，409 时自动拉取最新。 */
-export async function pushPending(): Promise<boolean> {
-  const watchlist = useWatchlistStore()
-  if (!watchlist.dirty) return false
+export async function confirmWatchlistPush(baseUpdatedAt: number) {
+  await syncSession().confirmPush(baseUpdatedAt)
+  watchlistSyncError.value = ''
+}
 
-  try {
-    const updatedAt = await pushWatchlistToCloud(watchlist.groups, watchlist.lastSyncedAt)
-    watchlist.markSynced(updatedAt)
-    return true
-  } catch (error) {
-    if (error instanceof WatchlistConflictError) {
-      watchlist.setGroups(error.cloudState.groups, true, false)
-      watchlist.markSynced(error.cloudState.updatedAt)
-    }
-    throw error
-  }
+export function resumeWatchlistSync() {
+  watchlistSyncError.value = ''
+  syncSession().resume()
+}
+
+export function checkAndPull(): Promise<boolean> {
+  return syncSession().pull()
+}
+
+export function pushPending(): Promise<boolean> {
+  return syncSession().push()
 }
 
 const CHECK_INTERVAL_MS = 10_000
 const PUSH_DEBOUNCE_MS = 2_000
 
 let lastCheckedAt = 0
-let pushTimer: ReturnType<typeof setTimeout> | null = null
-let pushInFlight: Promise<void> | null = null
 
-/**
- * 行情请求成功后的"顺带检查"入口：节流调用 checkAndPull，发现云端更新则
- * 拉取覆盖本地。失败静默——不影响行情主流程，下次行情活动会再试。
- */
+/** Pending local edits take precedence over background cloud reads. */
 export function notifyMarketActivity() {
   const now = Date.now()
   if (now - lastCheckedAt < CHECK_INTERVAL_MS) return
   lastCheckedAt = now
-
-  checkAndPull().catch(() => {
-    // Cloud unreachable or unauthorized: keep local data, retry next activity.
-  })
+  const operation = useWatchlistStore().dirty ? pushPending() : checkAndPull()
+  void operation.catch(() => {})
 }
 
-/**
- * 启动自动同步：本地自选变更（dirty）后防抖推送到云端；409 冲突时
- * 自动拉取最新云端数据。返回停止函数（组件卸载时调用，防抖清理）。
- */
 export function startWatchlistSync() {
   const watchlist = useWatchlistStore()
-
-  watch(
-    () => watchlist.dirty,
-    (value) => {
-      if (!value) return
-      if (pushTimer) clearTimeout(pushTimer)
+  const session = syncSession()
+  let pushTimer: ReturnType<typeof setTimeout> | undefined
+  const unwatch = watch(
+    () => [watchlist.dirty, JSON.stringify(watchlist.groups)],
+    () => {
+      clearTimeout(pushTimer)
+      if (!watchlist.dirty) return
       pushTimer = setTimeout(() => {
-        pushTimer = null
-        pushInFlight ??= pushPending()
-          .then(() => undefined)
-          .catch(() => {
-            // Push failed (offline/401): dirty stays true, retried on next change or activity.
-          })
-          .finally(() => {
-            pushInFlight = null
-          })
+        pushTimer = undefined
+        void session.push().catch(() => {})
       }, PUSH_DEBOUNCE_MS)
     },
+    { immediate: true },
   )
+  return () => {
+    unwatch()
+    clearTimeout(pushTimer)
+  }
 }
