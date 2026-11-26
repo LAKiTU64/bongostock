@@ -14,6 +14,7 @@ Default permissions for the plugin
 - `allow-reveal-recovered-main`
 - `allow-display-work-areas`
 - `allow-set-page-gesture`
+- `allow-hide-panel-for-hour`
 
 ## Permission Table
 
@@ -46,6 +47,32 @@ Enables the display_work_areas command without any pre-configured scope.
 <td>
 
 Denies the display_work_areas command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:allow-hide-panel-for-hour`
+
+</td>
+<td>
+
+Enables the hide_panel_for_hour command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`custom-window:deny-hide-panel-for-hour`
+
+</td>
+<td>
+
+Denies the hide_panel_for_hour command without any pre-configured scope.
 
 </td>
 </tr>

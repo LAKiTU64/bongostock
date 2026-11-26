@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-hide-panel-for-hour"
+description = "Enables the hide_panel_for_hour command without any pre-configured scope."
+commands.allow = ["hide_panel_for_hour"]
+
+[[permission]]
+identifier = "deny-hide-panel-for-hour"
+description = "Denies the hide_panel_for_hour command without any pre-configured scope."
+commands.deny = ["hide_panel_for_hour"]

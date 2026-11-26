@@ -23,6 +23,7 @@ function fakeMedia() {
   return {
     muted: true,
     paused: true,
+    ended: false,
     plays: 0,
     pauses: 0,
     currentTime: 27,
@@ -387,6 +388,86 @@ test('manual mute during a pending play is not undone when play settles', async 
   pending.resolve()
   assert.equal(await playing, true)
   assert.equal(media.muted, true)
+})
+
+test('a WebKit hide pause resumes the same element once and preserves its sound state', async () => {
+  for (const muted of [true, false]) {
+    const f = fixture()
+    const media = fakeMedia()
+    f.setMedia(media)
+    await f.connect()
+    await f.safety.play(media)
+    // The element may already be silent even though the route allows sound.
+    media.muted = muted
+    f.safety.prepareWindowHide(true)
+    media.pause()
+    assert.equal(await f.safety.resumeAfterWindowHide(true), true)
+    assert.equal(media.paused, false)
+    assert.equal(media.muted, muted)
+    assert.equal(media.currentTime, 27)
+    assert.equal(await f.safety.resumeAfterWindowHide(true), false)
+    assert.equal(media.plays, 2)
+  }
+})
+
+test('an ordinary hide, an existing pause, a continuing video and an ended part do not issue play', async () => {
+  for (const state of ['ordinary', 'paused', 'continuing', 'ended', 'shown']) {
+    const f = fixture()
+    const media = fakeMedia()
+    f.setMedia(media)
+    await f.connect()
+    await f.safety.play(media)
+    if (state === 'paused') media.pause()
+    f.safety.prepareWindowHide(state !== 'ordinary')
+    if (state !== 'continuing') media.pause()
+    media.ended = state === 'ended'
+    assert.equal(await f.safety.resumeAfterWindowHide(state !== 'shown'), false)
+    assert.equal(media.plays, 1)
+  }
+})
+
+test('a disconnect during hidden play silences pending media and reconnect does not resume it', async () => {
+  const f = fixture()
+  const media = fakeMedia()
+  f.setMedia(media)
+  await f.connect()
+  await f.safety.play(media)
+  f.safety.prepareWindowHide(true)
+  media.pause()
+  const started = deferred<void>()
+  const pending = deferred<void>()
+  media.play = async () => {
+    started.resolve()
+    await pending.promise
+    media.paused = false
+  }
+  const resuming = f.safety.resumeAfterWindowHide(true)
+  await started.promise
+  assert.equal(media.muted, true)
+  f.change(speaker)
+  f.change({ ...headphones, revision: 3 })
+  pending.resolve()
+  assert.equal(await resuming, false)
+  assert.equal(await f.safety.resumeAfterWindowHide(true), false)
+  assert.equal(media.paused, true)
+  assert.equal(media.muted, true)
+})
+
+test('a browser rejection during hide leaves media paused and does not retry on restore', async () => {
+  const f = fixture()
+  const media = fakeMedia()
+  f.setMedia(media)
+  await f.connect()
+  await f.safety.play(media)
+  f.safety.prepareWindowHide(true)
+  media.pause()
+  media.play = async () => {
+    throw new Error('Playback unavailable')
+  }
+  assert.equal(await f.safety.resumeAfterWindowHide(true), false)
+  assert.equal(media.paused, true)
+  assert.equal(media.muted, true)
+  assert.equal(await f.safety.resumeAfterWindowHide(false), false)
 })
 
 test('state validation rejects missing, malformed and unsafe revisions', () => {

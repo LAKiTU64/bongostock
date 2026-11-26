@@ -7,6 +7,8 @@ export interface AudioOutputState {
 
 export interface SafetyMedia {
   muted: boolean
+  readonly paused: boolean
+  readonly ended: boolean
   pause: () => void
   play: () => Promise<void>
 }
@@ -40,6 +42,7 @@ export function createAudioSafety(options: AudioSafetyOptions) {
   let playbackWanted = true
   let intent: 'automatic' | 'manual' | 'muted' = 'automatic'
   let activePlay: { media: SafetyMedia, epoch: number } | undefined
+  let playingBeforeHide: typeof activePlay
   let unlisten: (() => void) | undefined
   let connection: Promise<void> = Promise.resolve()
 
@@ -49,6 +52,7 @@ export function createAudioSafety(options: AudioSafetyOptions) {
   }
 
   function cancelPlayback() {
+    playingBeforeHide = undefined
     epoch += 1
     playbackWanted = false
     activePlay = undefined
@@ -132,7 +136,7 @@ export function createAudioSafety(options: AudioSafetyOptions) {
     // Keep sound intent across parts, not a previously unmuted DOM property.
   }
 
-  async function play(media: SafetyMedia, userInitiated = false): Promise<boolean> {
+  async function play(media: SafetyMedia, userInitiated = false, { keepMuted = false } = {}): Promise<boolean> {
     if (disposed || media !== options.getMedia()) return false
     if (userInitiated) allowPlayback()
     if (!playbackWanted) return false
@@ -164,7 +168,7 @@ export function createAudioSafety(options: AudioSafetyOptions) {
       }
       return false
     }
-    if (sound === soundVersion) setMuted(!audible, media)
+    if (sound === soundVersion) setMuted(keepMuted || !audible, media)
     return true
   }
 
@@ -176,6 +180,19 @@ export function createAudioSafety(options: AudioSafetyOptions) {
     setMuted(true, media)
     media.pause()
     return false
+  }
+
+  function prepareWindowHide(hidden: boolean) {
+    playingBeforeHide = hidden && activePlay && !activePlay.media.paused ? activePlay : undefined
+  }
+
+  async function resumeAfterWindowHide(hidden: boolean): Promise<boolean> {
+    const previous = playingBeforeHide
+    playingBeforeHide = undefined
+    // WKWebView may pause a running video while hiding its NSWindow. Only
+    // resume once, on the same media and uninterrupted playback request.
+    if (!hidden || !previous || previous !== activePlay || !previous.media.paused || previous.media.ended) return false
+    return play(previous.media, false, { keepMuted: previous.media.muted })
   }
 
   function mute() {
@@ -208,5 +225,5 @@ export function createAudioSafety(options: AudioSafetyOptions) {
     unlisten = undefined
   }
 
-  return { connect, stop, allowPlayback, beginPart, play, acceptPlaying, mute, unmute, dispose }
+  return { connect, stop, allowPlayback, beginPart, play, acceptPlaying, prepareWindowHide, resumeAfterWindowHide, mute, unmute, dispose }
 }

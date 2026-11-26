@@ -5350,6 +5350,7 @@ dependencies = [
  "tauri",
  "tauri-nspanel",
  "tauri-plugin",
+ "tokio",
  "windows",
 ]
 

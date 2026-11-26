@@ -79,6 +79,10 @@ pub async fn show_window<R: Runtime>(
     }
 }
 
+pub(super) fn hide_main_panel<R: Runtime>(app: &AppHandle<R>, window: &WebviewWindow<R>) {
+    set_macos_panel(app, window, MacOSPanelStatus::Hide);
+}
+
 /// Bring the existing NSPanel forward without changing its saved/native level.
 /// to_panel changes this NSWindow's class; it is not a second window to move.
 pub fn reveal_recovered_panel<R: Runtime>(app_handle: &AppHandle<R>) -> Result<(), String> {
@@ -141,15 +145,6 @@ pub fn macos_display_work_areas<R: Runtime>(
     receiver
         .recv_timeout(std::time::Duration::from_secs(3))
         .map_err(|error| error.to_string())?
-}
-
-#[command]
-pub async fn hide_window<R: Runtime>(app_handle: AppHandle<R>, window: WebviewWindow<R>) {
-    if is_main_window(&window) {
-        set_macos_panel(&app_handle, &window, MacOSPanelStatus::Hide);
-    } else {
-        let _ = window.hide();
-    }
 }
 
 #[command]

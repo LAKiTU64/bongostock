@@ -1,6 +1,7 @@
 const COMMANDS: &[&str] = &[
     "show_window",
     "set_page_gesture",
+    "hide_panel_for_hour",
     "request_window_recovery",
     "take_window_recovery_request",
     "reveal_recovered_main",

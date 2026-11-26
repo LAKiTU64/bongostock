@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useEventListener } from '@vueuse/core'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { AudioOutputState } from '@/market/audioSafety'
 import type { BiliHistoryItem, PlaybackContext } from '@/market/biliHistory'
@@ -14,7 +15,7 @@ import { cloudHistoryItems, cloudPartResume, preferredHistoryCid } from '@/marke
 import { fetchVideoParts } from '@/market/feedService'
 import { formatVideoTime, resumePosition } from '@/market/videoHistory'
 
-const props = defineProps<{ item: FeedItem, context: PlaybackContext, cloudHistory: readonly BiliHistoryItem[], signal: AbortSignal, reporter: ProgressReporter, syncMessage: string }>()
+const props = defineProps<{ item: FeedItem, context: PlaybackContext, cloudHistory: readonly BiliHistoryItem[], signal: AbortSignal, reporter: ProgressReporter, syncMessage: string, hiddenForPlayback: boolean }>()
 const emit = defineEmits<{ back: [] }>()
 // Never resolve connection or identity from mutable settings while a video is open.
 const context = props.context
@@ -281,6 +282,12 @@ function back() {
   stop()
   emit('back')
 }
+
+watch(() => props.hiddenForPlayback, audioSafety.prepareWindowHide, { flush: 'sync' })
+
+useEventListener(document, 'visibilitychange', () => {
+  void audioSafety.resumeAfterWindowHide(document.hidden && props.hiddenForPlayback)
+})
 
 onMounted(() => {
   // Subscribe before taking the first snapshot; revision guards cover races.

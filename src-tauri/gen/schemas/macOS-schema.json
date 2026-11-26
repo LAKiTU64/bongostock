@@ -4275,16 +4275,22 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`\n- `allow-hide-panel-for-hour`",
           "type": "string",
           "const": "custom-window:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-show-window`\n- `allow-show-labeled-window`\n- `allow-hide-window`\n- `allow-set-always-on-top`\n- `allow-set-taskbar-visibility`\n- `allow-request-window-recovery`\n- `allow-take-window-recovery-request`\n- `allow-reveal-recovered-main`\n- `allow-display-work-areas`\n- `allow-set-page-gesture`\n- `allow-hide-panel-for-hour`"
         },
         {
           "description": "Enables the display_work_areas command without any pre-configured scope.",
           "type": "string",
           "const": "custom-window:allow-display-work-areas",
           "markdownDescription": "Enables the display_work_areas command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the hide_panel_for_hour command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:allow-hide-panel-for-hour",
+          "markdownDescription": "Enables the hide_panel_for_hour command without any pre-configured scope."
         },
         {
           "description": "Enables the hide_window command without any pre-configured scope.",
@@ -4345,6 +4351,12 @@
           "type": "string",
           "const": "custom-window:deny-display-work-areas",
           "markdownDescription": "Denies the display_work_areas command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the hide_panel_for_hour command without any pre-configured scope.",
+          "type": "string",
+          "const": "custom-window:deny-hide-panel-for-hour",
+          "markdownDescription": "Denies the hide_panel_for_hour command without any pre-configured scope."
         },
         {
           "description": "Denies the hide_window command without any pre-configured scope.",

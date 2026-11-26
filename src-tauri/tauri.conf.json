@@ -37,6 +37,7 @@
       },
       {
         "label": "stock-panel",
+        "backgroundThrottling": "disabled",
         "title": "BongoStock 行情",
         "url": "index.html/#/stock-panel",
         "create": false,

@@ -110,10 +110,27 @@ pub fn show_preference_window(app_handle: &AppHandle) {
 }
 
 #[command]
+pub async fn hide_window<R: Runtime>(window: WebviewWindow<R>) -> Result<(), String> {
+    if window.label() == STOCK_PANEL_WINDOW_LABEL {
+        return crate::hidden_panel::hide_normally(&window).await;
+    }
+    #[cfg(target_os = "macos")]
+    if window.label() == MAIN_WINDOW_LABEL {
+        hide_main_panel(window.app_handle(), &window);
+        return Ok(());
+    }
+    window.hide().map_err(|error| error.to_string())
+}
+
+#[command]
 pub async fn show_labeled_window<R: Runtime>(
     app_handle: AppHandle<R>,
+    window: WebviewWindow<R>,
     label: String,
 ) -> Result<(), String> {
+    if label == STOCK_PANEL_WINDOW_LABEL {
+        return crate::hidden_panel::open(&app_handle, window.label()).await;
+    }
     ensure_window(&app_handle, &label)
 }
 
@@ -139,7 +156,7 @@ pub fn reveal_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) {
     });
 }
 
-fn ensure_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) -> Result<(), String> {
+pub(crate) fn ensure_window<R: Runtime>(app_handle: &AppHandle<R>, label: &str) -> Result<(), String> {
     if !matches!(label, PREFERENCE_WINDOW_LABEL | STOCK_PANEL_WINDOW_LABEL) {
         return Err(format!("unsupported window label: {label}"));
     }

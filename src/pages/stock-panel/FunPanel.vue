@@ -30,6 +30,7 @@ import { useMarketStore } from '@/stores/market'
 import FeedContextPicker from './FeedContextPicker.vue'
 import VideoPlayer from './VideoPlayer.vue'
 
+const props = defineProps<{ hiddenForPlayback: boolean }>()
 const marketStore = useMarketStore()
 const sources = [...FEED_SOURCES, { key: 'history', label: '历史' }, { key: 'favorites', label: '收藏' }] as const
 const source = ref<VideoSource | 'favorites'>('rcmd')
@@ -331,8 +332,11 @@ function openSettings() {
 }
 
 useEventListener(document, 'visibilitychange', () => {
-  if (document.hidden) stop()
-  else void refreshIdentity()
+  if (document.hidden) {
+    if (!props.hiddenForPlayback) stop()
+  } else {
+    void refreshIdentity()
+  }
 })
 watch(cacheKey, (selected) => {
   stop()
@@ -351,7 +355,7 @@ useTauriListen(LISTEN_KEY.BILI_SESSION_CHANGED, () => void refreshIdentity(true)
 onMounted(() => {
   void refreshIdentity(true)
   statusTimer = setInterval(() => {
-    if (!document.hidden && !accountState.value.checking) void refreshIdentity()
+    if ((!document.hidden || (props.hiddenForPlayback && playing.value)) && !accountState.value.checking) void refreshIdentity()
   }, 60_000)
 })
 onUnmounted(() => {
@@ -397,6 +401,7 @@ defineExpose({ refresh, pause: stop })
       ref="playerRef"
       :cloud-history="playingHistory"
       :context="playingContext"
+      :hidden-for-playback="props.hiddenForPlayback"
       :item="playing"
       :reporter="playingReporter"
       :signal="accountSignal.signal"

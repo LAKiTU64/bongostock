@@ -58,11 +58,6 @@ pub async fn show_window<R: Runtime>(
 }
 
 #[command]
-pub async fn hide_window<R: Runtime>(_app_handle: AppHandle<R>, window: WebviewWindow<R>) {
-    let _ = window.hide();
-}
-
-#[command]
 pub async fn set_always_on_top<R: Runtime>(
     _app_handle: AppHandle<R>,
     window: WebviewWindow<R>,

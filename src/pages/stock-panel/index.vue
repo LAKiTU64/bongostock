@@ -14,7 +14,7 @@ import { positionStockPanelNearPet } from '@/composables/useStockPanel'
 import { useTauriListen } from '@/composables/useTauriListen'
 import { LISTEN_KEY, WINDOW_LABEL } from '@/constants'
 import { fetchDailyKlines, fetchQuotes, fetchTrendSeries } from '@/market/marketService'
-import { hideWindow, showWindow } from '@/plugins/window'
+import { hidePanelForHour as hideNativePanelForHour, hideWindow, showWindow } from '@/plugins/window'
 import { installPanelRecovery, recoveringPanel, reportWindowRecoveryError } from '@/plugins/windowRecovery'
 import { useMarketStore } from '@/stores/market'
 import { useWatchlistStore } from '@/stores/watchlist'
@@ -61,7 +61,8 @@ let autoRefreshToken = 0
 let detailAbortController: AbortController | undefined
 let detailRequestId = 0
 let quoteRequestId = 0
-let dragPointerStart: { x: number, y: number } | undefined
+let dragPointerStart: { id: number, x: number, y: number, toolbar: boolean } | undefined
+let suppressToolbarClick = false
 let groupTabsDrag: {
   pointerId: number
   startX: number
@@ -74,7 +75,9 @@ let unlistenFocus: (() => void) | undefined
 let unlistenClose: (() => void) | undefined
 let unlistenRecovery: (() => void) | undefined
 let retainedStateUntil = 0
-let panelLifecycle: 'active' | 'reclaimed' | 'retained' = 'reclaimed'
+const panelLifecycle = ref<'active' | 'reclaimed' | 'retained' | 'hidden'>('reclaimed')
+const hiddenForPlayback = computed(() => panelLifecycle.value === 'hidden')
+let focusRevision = 0
 let closeInProgress = false
 
 const DRAG_THRESHOLD = 4
@@ -184,16 +187,28 @@ watch(() => [
 ], resetIdleFade)
 
 useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
-  if (payload !== WINDOW_LABEL.STOCK_PANEL || recoveringPanel.value) return
+  if (payload !== WINDOW_LABEL.STOCK_PANEL) return
 
+  const wasDeliberatelyHidden = hiddenForPlayback.value
+  if (recoveringPanel.value && !wasDeliberatelyHidden) return
+  focusRevision += 1
   void windowPositionQueue(async () => {
-    if (recoveringPanel.value) return
-    const restoreState = panelLifecycle === 'retained'
+    if (recoveringPanel.value && !wasDeliberatelyHidden) return
+    if (wasDeliberatelyHidden && !hiddenForPlayback.value) return
+    if (hiddenForPlayback.value) {
+      // Native code shows the same window only before its deadline. A late
+      // notification from before the hide must not reveal a hidden session.
+      if (!await appWindow.isVisible()) return
+      panelLifecycle.value = 'active'
+      resetIdleFade()
+      startAutoRefresh()
+      return
+    }
+    if (panelLifecycle.value === 'active') return
+    const restoreState = panelLifecycle.value === 'retained'
       && watchlistStore.panel.stateRetentionSeconds > 0
       && Date.now() <= retainedStateUntil
-    panelLifecycle = 'active'
     retainedStateUntil = 0
-    closeInProgress = false
     if (!restoreState) {
       await setPanelMode('market')
       closeDetail()
@@ -203,6 +218,8 @@ useTauriListen<string>(LISTEN_KEY.SHOW_WINDOW, ({ payload }) => {
     }
     setPinMode('normal')
     await showWindow()
+    panelLifecycle.value = 'active'
+    resetIdleFade()
     void refreshQuotes()
     startAutoRefresh()
   }).catch(reportWindowRecoveryError)
@@ -250,7 +267,8 @@ onMounted(async () => {
   await showWindow(WINDOW_LABEL.STOCK_PANEL)
   resetIdleFade()
   unlistenFocus = await appWindow.onFocusChanged(async ({ payload: focused }) => {
-    if (focused || recoveringPanel.value || isPinned.value || closeInProgress || !await appWindow.isVisible()) return
+    const revision = ++focusRevision
+    if (focused || recoveringPanel.value || isPinned.value || closeInProgress || hiddenForPlayback.value || !await appWindow.isVisible()) return
 
     const mainWindow = await WebviewWindow.getByLabel(WINDOW_LABEL.MAIN)
     const [mainFocused, panelFocused] = await Promise.all([
@@ -258,7 +276,7 @@ onMounted(async () => {
       appWindow.isFocused(),
     ])
 
-    if (!mainFocused && !panelFocused && !isPinned.value) void closePanel(true)
+    if (revision === focusRevision && !mainFocused && !panelFocused && !isPinned.value) void closePanel(true)
   })
 
   unlistenClose = await appWindow.onCloseRequested(() => {
@@ -289,7 +307,7 @@ function resetIdleFade() {
   isDimmed.value = false
   clearTimeout(idleFadeTimer)
   idleFadeTimer = undefined
-  if (isOpaque.value || closeInProgress || panelLifecycle !== 'active') return
+  if (isOpaque.value || closeInProgress || panelLifecycle.value !== 'active') return
 
   idleFadeTimer = setTimeout(() => {
     isDimmed.value = true
@@ -358,15 +376,21 @@ function isTradingSession(now = new Date()) {
     || (minutes >= AFTERNOON_OPEN_MINUTES && minutes <= AFTERNOON_CLOSE_MINUTES + SESSION_TAIL_MINUTES)
 }
 
-function handleDragPointerDown(event: PointerEvent) {
-  if (event.button !== 0) return
+function handleDragPointerDown(event: PointerEvent, toolbar = false) {
+  if (event.button !== 0 || !event.isPrimary) return
 
-  dragPointerStart = { x: event.screenX, y: event.screenY }
+  if (toolbar) {
+    suppressToolbarClick = false
+    // Capture on the pressed button so an ordinary click still reaches it.
+    const origin = (event.target as Element).closest('button') ?? event.currentTarget as HTMLElement
+    origin.setPointerCapture(event.pointerId)
+  }
+  dragPointerStart = { id: event.pointerId, x: event.screenX, y: event.screenY, toolbar }
   resetIdleFade()
 }
 
 function handleDragPointerMove(event: PointerEvent) {
-  if (!dragPointerStart || (event.buttons & 1) === 0) return
+  if (dragPointerStart?.id !== event.pointerId || (event.buttons & 1) === 0) return
 
   const distance = Math.hypot(
     event.screenX - dragPointerStart.x,
@@ -375,19 +399,22 @@ function handleDragPointerMove(event: PointerEvent) {
 
   if (distance < DRAG_THRESHOLD) return
 
+  if (dragPointerStart.toolbar) suppressToolbarClick = true
   dragPointerStart = undefined
-  void appWindow.startDragging()
+  void appWindow.startDragging().catch(reportWindowRecoveryError)
 }
 
-function handleDragPointerEnd() {
-  dragPointerStart = undefined
+function handleDragPointerEnd(event: PointerEvent) {
+  if (dragPointerStart?.id === event.pointerId) dragPointerStart = undefined
 }
 
-function startPanelDragging(event: PointerEvent) {
-  if (event.button !== 0) return
+function handleToolbarClick(event: MouseEvent) {
+  // Native dragging can consume pointerup or click. A fresh press starts
+  // clean, and keyboard/assistive activation (detail 0) always passes through.
+  if (!suppressToolbarClick || event.detail === 0) return
+  suppressToolbarClick = false
   event.preventDefault()
-  resetIdleFade()
-  void appWindow.startDragging()
+  event.stopPropagation()
 }
 
 /**
@@ -586,14 +613,44 @@ function handleRefresh() {
   void refreshQuotes()
 }
 
+function hidePanelForHour() {
+  return windowPositionQueue(async () => {
+    if (recoveringPanel.value || panelLifecycle.value !== 'active') return
+    focusRevision += 1
+    panelLifecycle.value = 'hidden'
+    resetIdleFade()
+    stopAutoRefresh()
+    // Deliver the prop before hiding causes WebKit's visibilitychange.
+    await nextTick()
+    try {
+      await hideNativePanelForHour()
+    } catch (error) {
+      if (await appWindow.isVisible().catch(() => false)) {
+        panelLifecycle.value = 'active'
+        resetIdleFade()
+        startAutoRefresh()
+      } else {
+        await performClosePanel(false)
+      }
+      throw error
+    }
+  }).catch(reportWindowRecoveryError)
+}
+
+function canClosePanel(retainState: boolean) {
+  if (hiddenForPlayback.value) return !retainState
+  return !recoveringPanel.value && (!retainState || panelLifecycle.value === 'active')
+}
+
 function closePanel(retainState: boolean) {
-  if (recoveringPanel.value) return Promise.resolve()
+  if (!canClosePanel(retainState)) return Promise.resolve()
   return windowPositionQueue(() => performClosePanel(retainState)).catch(reportWindowRecoveryError)
 }
 
 async function performClosePanel(retainState: boolean) {
-  if (closeInProgress || recoveringPanel.value) return
+  if (closeInProgress || !canClosePanel(retainState)) return
 
+  focusRevision += 1
   closeInProgress = true
   clearTimeout(idleFadeTimer)
   idleFadeTimer = undefined
@@ -609,10 +666,10 @@ async function performClosePanel(retainState: boolean) {
     await hideWindow()
   } finally {
     if (shouldRetain) {
-      panelLifecycle = 'retained'
+      panelLifecycle.value = 'retained'
       retainedStateUntil = Date.now() + retentionSeconds * 1000
     } else {
-      panelLifecycle = 'reclaimed'
+      panelLifecycle.value = 'reclaimed'
       retainedStateUntil = 0
     }
     closeInProgress = false
@@ -980,9 +1037,10 @@ function buildKlineChart(klines: StockKline[]) {
     <nav
       aria-label="浮窗功能"
       class="mode-tabs"
-      data-tauri-drag-region
+      @click.capture="handleToolbarClick"
+      @lostpointercapture="handleDragPointerEnd"
       @pointercancel="handleDragPointerEnd"
-      @pointerdown="handleDragPointerDown"
+      @pointerdown="handleDragPointerDown($event, true)"
       @pointermove="handleDragPointerMove"
       @pointerup="handleDragPointerEnd"
     >
@@ -990,7 +1048,6 @@ function buildKlineChart(klines: StockKline[]) {
         :class="{ active: panelMode === 'market' }"
         type="button"
         @click.stop="setPanelMode('market')"
-        @pointerdown.stop
       >
         行情
       </button>
@@ -998,7 +1055,6 @@ function buildKlineChart(klines: StockKline[]) {
         :class="{ active: panelMode === 'news' }"
         type="button"
         @click.stop="setPanelMode('news')"
-        @pointerdown.stop
       >
         资讯
       </button>
@@ -1006,88 +1062,49 @@ function buildKlineChart(klines: StockKline[]) {
         :class="{ active: panelMode === 'fun' }"
         type="button"
         @click.stop="setPanelMode('fun')"
-        @pointerdown.stop
       >
         刷视频
       </button>
       <button
         :aria-label="pinButtonLabel"
         :aria-pressed="isPinned"
-        class="pin-button"
+        class="toolbar-action pin-button"
         :class="{ active: isPinned }"
         :title="pinButtonLabel"
         type="button"
         @click.stop="togglePinned"
-        @pointerdown.stop
       >
-        <svg
+        <span
           aria-hidden="true"
-          viewBox="0 0 24 24"
-        >
-          <path d="M9 3h6l-1 6 3 3v2h-4v7l-1 1-1-1v-7H7v-2l3-3-1-6Z" />
-          <rect
-            v-if="isOpaque"
-            height="6"
-            rx="1"
-            width="6"
-            x="18"
-            y="17"
-          />
-        </svg>
+          class="toolbar-icon"
+          :class="isOpaque ? 'i-lucide-lock-keyhole' : 'i-lucide-pin'"
+        />
       </button>
       <button
+        :aria-busy="loading || detailLoading || newsLoading"
         :aria-label="panelMode === 'news' ? '刷新资讯' : panelMode === 'fun' ? '换一批' : '刷新行情'"
-        class="refresh-button"
+        class="toolbar-action refresh-button"
         :disabled="loading || detailLoading || newsLoading"
         :title="panelMode === 'news' ? '刷新资讯' : panelMode === 'fun' ? '换一批' : selectedQuote ? '刷新该股票详细行情' : '刷新行情'"
         type="button"
         @click.stop="handleRefresh"
-        @pointerdown.stop
       >
-        {{ (loading || detailLoading || newsLoading) ? '…' : '↻' }}
+        <span
+          aria-hidden="true"
+          class="toolbar-icon i-lucide-rotate-cw"
+        />
       </button>
       <button
-        aria-label="拖动浮窗"
-        class="drag-handle"
-        title="拖动浮窗"
+        aria-label="隐藏浮窗"
+        class="toolbar-action hide-button"
+        title="隐藏浮窗"
         type="button"
-        @pointerdown.stop="startPanelDragging"
+        @click.stop="hidePanelForHour"
       >
-        <svg
+        <span
           aria-hidden="true"
-          viewBox="0 0 12 18"
-        >
-          <circle
-            cx="3"
-            cy="4"
-            r="1.2"
-          />
-          <circle
-            cx="9"
-            cy="4"
-            r="1.2"
-          />
-          <circle
-            cx="3"
-            cy="9"
-            r="1.2"
-          />
-          <circle
-            cx="9"
-            cy="9"
-            r="1.2"
-          />
-          <circle
-            cx="3"
-            cy="14"
-            r="1.2"
-          />
-          <circle
-            cx="9"
-            cy="14"
-            r="1.2"
-          />
-        </svg>
+          class="toolbar-icon i-lucide-eye-off"
+        />
       </button>
     </nav>
 
@@ -1146,7 +1163,10 @@ function buildKlineChart(klines: StockKline[]) {
       v-else-if="panelMode === 'fun'"
       class="fun-view"
     >
-      <FunPanel ref="funPanelRef" />
+      <FunPanel
+        ref="funPanelRef"
+        :hidden-for-playback="hiddenForPlayback"
+      />
     </section>
 
     <section
@@ -1475,13 +1495,13 @@ function buildKlineChart(klines: StockKline[]) {
   height: 26px;
   min-height: 26px;
   flex: none;
-  /* 三个模式 tab 等分剩余宽度，后面三个固定列依次是：常驻、刷新、拖拽手柄。
-     列数必须和子元素数量一致，否则末尾的手柄会被挤到第二行，而容器只有 26px 高，直接看不见。 */
-  grid-template-columns: repeat(3, minmax(0, 1fr)) 24px 24px 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) repeat(3, 24px);
   gap: var(--tab-gap);
   padding-top: 1px;
   padding-bottom: 3px;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .mode-tabs:active {
@@ -1508,24 +1528,8 @@ function buildKlineChart(klines: StockKline[]) {
   font-weight: 650;
 }
 
-.mode-tabs .drag-handle {
-  display: grid;
-  width: 16px;
-  place-items: center;
-  padding: 0;
-  background: transparent;
-  color: #9a8e8f;
-  cursor: grab;
-}
-
-.mode-tabs .drag-handle:active {
-  cursor: grabbing;
-}
-
-.drag-handle svg {
-  width: 9px;
-  height: 15px;
-  fill: currentcolor;
+.mode-tabs button:disabled {
+  pointer-events: none;
 }
 
 .news-view {
@@ -1908,8 +1912,7 @@ function buildKlineChart(klines: StockKline[]) {
   font-weight: 650;
 }
 
-.pin-button,
-.refresh-button {
+.mode-tabs .toolbar-action {
   display: grid;
   width: 24px;
   height: 22px;
@@ -1925,10 +1928,22 @@ function buildKlineChart(klines: StockKline[]) {
   font-size: 13px;
 }
 
-.pin-button svg {
-  width: 13px;
-  height: 13px;
-  fill: currentcolor;
+.toolbar-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .refresh-button[aria-busy='true'] .toolbar-icon {
+    animation: toolbar-refresh 1s linear infinite;
+  }
+}
+
+@keyframes toolbar-refresh {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .pin-button.active {

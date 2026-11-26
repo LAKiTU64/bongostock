@@ -12,6 +12,7 @@ const COMMAND = {
   SHOW_WINDOW: 'plugin:custom-window|show_window',
   SHOW_LABELED_WINDOW: 'plugin:custom-window|show_labeled_window',
   HIDE_WINDOW: 'plugin:custom-window|hide_window',
+  HIDE_PANEL_FOR_HOUR: 'plugin:custom-window|hide_panel_for_hour',
   SET_ALWAYS_ON_TOP: 'plugin:custom-window|set_always_on_top',
   SET_TASKBAR_VISIBILITY: 'plugin:custom-window|set_taskbar_visibility',
 }
@@ -31,6 +32,10 @@ export function hideWindow(label?: WindowLabel) {
   }
 
   return invoke(COMMAND.HIDE_WINDOW)
+}
+
+export function hidePanelForHour() {
+  return invoke<void>(COMMAND.HIDE_PANEL_FOR_HOUR)
 }
 
 export function setAlwaysOnTop(alwaysOnTop: boolean) {
